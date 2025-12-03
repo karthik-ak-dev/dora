@@ -1,0 +1,15 @@
+"""
+Application constants.
+"""
+
+# JWT
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRY_DAYS = 7
+
+# Pagination
+DEFAULT_PAGE_SIZE = 20
+MAX_PAGE_SIZE = 100
+
+# Processing
+MAX_RETRIES = 3
+RETRY_DELAY_SECONDS = 5

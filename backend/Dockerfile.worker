@@ -1,0 +1,19 @@
+# Dockerfile for Worker
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install dependencies
+COPY requirements/worker.txt requirements/
+RUN pip install --no-cache-dir -r requirements/worker.txt
+
+# Copy source code
+COPY src/ src/
+
+# Run worker
+CMD ["python", "-m", "src.worker.main"]

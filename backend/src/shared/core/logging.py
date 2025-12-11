@@ -9,7 +9,7 @@ Development:
     2024-01-15 10:30:00 [info     ] User created                   user_id=550e8400-e29b-...
 
 Production (JSON):
-    {"timestamp": "2024-01-15T10:30:00", "level": "info", "event": "User created", "user_id": "550e8400-..."}
+    {"timestamp": "2024-01-15T10:30:00", "level": "info", "event": "User created"}
 
 Features:
 =========
@@ -164,4 +164,3 @@ setup_logging()
 
 # Default logger instance for convenient import
 logger = get_logger("dora")
-

@@ -35,14 +35,12 @@ Usage:
 
 from typing import Annotated, Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config.settings import settings
-from src.shared.core.exceptions import AuthenticationError
-from src.shared.utils.security import SecurityUtils
-from src.api.dependencies.database import DbSession
+from ...config.settings import settings
+from ...shared.core.exceptions import AuthenticationError
+from ...shared.utils.security import SecurityUtils
 
 
 # Security scheme for Bearer tokens
@@ -72,7 +70,7 @@ async def get_current_user_token(
         payload = SecurityUtils.decode_access_token(token, settings.SECRET_KEY)
         return payload
     except ValueError as e:
-        raise AuthenticationError(str(e))
+        raise AuthenticationError(str(e)) from e
 
 
 async def get_current_user(

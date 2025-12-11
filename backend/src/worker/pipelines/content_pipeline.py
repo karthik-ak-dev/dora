@@ -21,7 +21,7 @@ After this pipeline completes:
 - Clustering can then group items WITHIN each category
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional
 from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
@@ -150,7 +150,6 @@ class ContentPipeline:
         - generic_scraper for other URLs
         """
         # Placeholder - actual implementation would use scrapers
-        pass
 
     def _run_enrichment(self, content: SharedContent) -> None:
         """
@@ -197,7 +196,7 @@ class ContentPipeline:
         )
 
     def _run_vectorization(
-        self, content: SharedContent, analysis: ContentAnalysisResult
+        self, content: SharedContent, _analysis: ContentAnalysisResult
     ) -> Optional[str]:
         """
         Stage 4: Generate embedding and store in vector DB.

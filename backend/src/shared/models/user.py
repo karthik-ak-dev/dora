@@ -19,7 +19,7 @@ SAMPLE USER RECORD:
 └──────────────────────────────────────────────────────────────────────────────┘
 """
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 import uuid
 
 from sqlalchemy import String, Text

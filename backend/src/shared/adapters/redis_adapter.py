@@ -10,7 +10,6 @@ Provides:
 import json
 import logging
 from typing import Optional, Any, Dict
-from datetime import timedelta
 
 import redis
 from redis.exceptions import RedisError
@@ -63,7 +62,7 @@ class RedisAdapter:
         try:
             return self.client.get(key)
         except RedisError as e:
-            logger.warning(f"Redis get failed for {key}: {e}")
+            logger.warning("Redis get failed for %s: %s", key, e)
             return None
 
     def get_json(self, key: str) -> Optional[Dict[str, Any]]:
@@ -108,7 +107,7 @@ class RedisAdapter:
                 self.client.set(key, value)
             return True
         except RedisError as e:
-            logger.warning(f"Redis set failed for {key}: {e}")
+            logger.warning("Redis set failed for %s: %s", key, e)
             return False
 
     def set_json(
@@ -143,7 +142,7 @@ class RedisAdapter:
         try:
             return bool(self.client.delete(key))
         except RedisError as e:
-            logger.warning(f"Redis delete failed for {key}: {e}")
+            logger.warning("Redis delete failed for %s: %s", key, e)
             return False
 
     def exists(self, key: str) -> bool:
@@ -159,7 +158,7 @@ class RedisAdapter:
         try:
             return bool(self.client.exists(key))
         except RedisError as e:
-            logger.warning(f"Redis exists failed for {key}: {e}")
+            logger.warning("Redis exists failed for %s: %s", key, e)
             return False
 
     def incr(self, key: str, amount: int = 1) -> Optional[int]:
@@ -176,7 +175,7 @@ class RedisAdapter:
         try:
             return self.client.incrby(key, amount)
         except RedisError as e:
-            logger.warning(f"Redis incr failed for {key}: {e}")
+            logger.warning("Redis incr failed for %s: %s", key, e)
             return None
 
     def expire(self, key: str, ttl: int) -> bool:
@@ -193,7 +192,7 @@ class RedisAdapter:
         try:
             return bool(self.client.expire(key, ttl))
         except RedisError as e:
-            logger.warning(f"Redis expire failed for {key}: {e}")
+            logger.warning("Redis expire failed for %s: %s", key, e)
             return False
 
     def check_rate_limit(
@@ -224,7 +223,7 @@ class RedisAdapter:
             return current <= limit, current
 
         except RedisError as e:
-            logger.warning(f"Rate limit check failed for {key}: {e}")
+            logger.warning("Rate limit check failed for %s: %s", key, e)
             return True, 0  # Allow on error
 
     def acquire_lock(
@@ -245,7 +244,7 @@ class RedisAdapter:
         try:
             return bool(self.client.set(f"lock:{key}", "1", nx=True, ex=ttl))
         except RedisError as e:
-            logger.warning(f"Lock acquisition failed for {key}: {e}")
+            logger.warning("Lock acquisition failed for %s: %s", key, e)
             return False
 
     def release_lock(self, key: str) -> bool:

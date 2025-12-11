@@ -99,13 +99,13 @@ class OpenAIAdapter:
             )
 
         except RateLimitError as e:
-            logger.warning(f"OpenAI rate limit hit: {e}")
+            logger.warning("OpenAI rate limit hit: %s", e)
             raise
         except APIConnectionError as e:
-            logger.error(f"OpenAI connection error: {e}")
+            logger.error("OpenAI connection error: %s", e)
             raise
         except APIError as e:
-            logger.error(f"OpenAI API error: {e}")
+            logger.error("OpenAI API error: %s", e)
             raise
 
     def generate_embeddings_batch(
@@ -142,7 +142,7 @@ class OpenAIAdapter:
                     )
 
             except (RateLimitError, APIConnectionError, APIError) as e:
-                logger.error(f"Batch embedding failed at index {i}: {e}")
+                logger.error("Batch embedding failed at index %d: %s", i, e)
                 raise
 
         return results
@@ -187,7 +187,7 @@ class OpenAIAdapter:
             )
 
         except (RateLimitError, APIConnectionError, APIError) as e:
-            logger.error(f"OpenAI completion error: {e}")
+            logger.error("OpenAI completion error: %s", e)
             raise
 
     def complete_json(
@@ -229,8 +229,8 @@ class OpenAIAdapter:
         try:
             return json.loads(content.strip())
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON response: {content[:200]}")
-            raise ValueError(f"Invalid JSON response from LLM: {e}")
+            logger.error("Failed to parse JSON response: %s", content[:200])
+            raise ValueError(f"Invalid JSON response from LLM: {e}") from e
 
 
 # Singleton instance for convenience

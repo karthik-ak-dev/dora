@@ -5,7 +5,6 @@ Request/response models for user and authentication endpoints.
 """
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field
 

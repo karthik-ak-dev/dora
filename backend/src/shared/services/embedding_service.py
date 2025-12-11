@@ -11,10 +11,8 @@ import logging
 from typing import List, Dict, Optional
 from dataclasses import dataclass
 
-from sqlalchemy.orm import Session
-
 from ..adapters.openai_adapter import OpenAIAdapter, get_openai_adapter
-from ..adapters.vector_db import VectorDBAdapter, get_vector_db_adapter, VectorSearchResult
+from ..adapters.vector_db import VectorDBAdapter, get_vector_db_adapter
 from ..models.shared_content import SharedContent
 from ..models.enums import ContentCategory
 
@@ -161,7 +159,9 @@ class EmbeddingService:
         )
 
         logger.info(
-            f"Generated embedding for content {content.id}, " f"tokens used: {result.usage_tokens}"
+            "Generated embedding for content %s, tokens used: %d",
+            content.id,
+            result.usage_tokens,
         )
 
         return embedding_id
@@ -213,7 +213,7 @@ class EmbeddingService:
         # Batch upsert
         self.vector_db.upsert_batch(points)
 
-        logger.info(f"Generated embeddings for {len(contents)} contents")
+        logger.info("Generated embeddings for %d contents", len(contents))
 
         return result_map
 
@@ -251,7 +251,7 @@ class EmbeddingService:
         # Get the embedding for the query content
         vectors = self.vector_db.get_vectors([content_id])
         if content_id not in vectors:
-            logger.warning(f"No embedding found for content {content_id}")
+            logger.warning("No embedding found for content %s", content_id)
             return []
 
         query_vector = vectors[content_id]
@@ -335,7 +335,7 @@ class EmbeddingService:
             content_id: Content ID to delete embedding for
         """
         self.vector_db.delete([content_id])
-        logger.info(f"Deleted embedding for content {content_id}")
+        logger.info("Deleted embedding for content %s", content_id)
 
 
 # Singleton instance

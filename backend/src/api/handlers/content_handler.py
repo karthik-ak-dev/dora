@@ -106,7 +106,7 @@ async def save_content(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
-        )
+        ) from e
 
     message = (
         "Content saved successfully. Processing has been queued."

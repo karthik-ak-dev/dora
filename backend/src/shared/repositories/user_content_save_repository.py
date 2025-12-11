@@ -95,7 +95,7 @@ class UserContentSaveRepository(BaseRepository[UserContentSave]):
         )
 
         if not include_archived:
-            query = query.where(UserContentSave.is_archived == False)
+            query = query.where(UserContentSave.is_archived.is_(False))
 
         query = query.order_by(UserContentSave.created_at.desc())
         query = query.offset(skip).limit(limit)
@@ -125,7 +125,7 @@ class UserContentSaveRepository(BaseRepository[UserContentSave]):
         )
 
         if not include_archived:
-            query = query.where(UserContentSave.is_archived == False)
+            query = query.where(UserContentSave.is_archived.is_(False))
 
         query = query.order_by(UserContentSave.created_at.desc())
 
@@ -165,7 +165,7 @@ class UserContentSaveRepository(BaseRepository[UserContentSave]):
             query = query.where(SharedContent.status == ItemStatus.READY)
 
         if not include_archived:
-            query = query.where(UserContentSave.is_archived == False)
+            query = query.where(UserContentSave.is_archived.is_(False))
 
         query = query.order_by(UserContentSave.created_at.desc())
 

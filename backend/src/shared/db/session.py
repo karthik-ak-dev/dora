@@ -271,4 +271,3 @@ async def close_db() -> None:
     await engine.dispose()
 
     logger.info("Database connection closed successfully")
-

@@ -85,15 +85,15 @@ class VectorDBAdapter:
                         distance=qdrant_models.Distance.COSINE,
                     ),
                 )
-                logger.info(f"Created collection: {self.COLLECTION_NAME}")
+                logger.info("Created collection: %s", self.COLLECTION_NAME)
 
         except UnexpectedResponse as e:
-            logger.error(f"Failed to ensure collection: {e}")
+            logger.error("Failed to ensure collection: %s", e)
             raise
 
     def upsert(
         self,
-        id: str,
+        point_id: str,
         vector: List[float],
         payload: Optional[Dict[str, Any]] = None,
     ) -> None:
@@ -101,7 +101,7 @@ class VectorDBAdapter:
         Insert or update a vector.
 
         Args:
-            id: Unique identifier (typically shared_content.id)
+            point_id: Unique identifier (typically shared_content.id)
             vector: Embedding vector
             payload: Metadata to store with vector
         """
@@ -110,14 +110,14 @@ class VectorDBAdapter:
                 collection_name=self.COLLECTION_NAME,
                 points=[
                     qdrant_models.PointStruct(
-                        id=id,
+                        id=point_id,
                         vector=vector,
                         payload=payload or {},
                     )
                 ],
             )
         except UnexpectedResponse as e:
-            logger.error(f"Failed to upsert vector {id}: {e}")
+            logger.error("Failed to upsert vector %s: %s", point_id, e)
             raise
 
     def upsert_batch(
@@ -148,7 +148,7 @@ class VectorDBAdapter:
                     ],
                 )
             except UnexpectedResponse as e:
-                logger.error(f"Batch upsert failed at index {i}: {e}")
+                logger.error("Batch upsert failed at index %d: %s", i, e)
                 raise
 
     def search(
@@ -201,7 +201,7 @@ class VectorDBAdapter:
             ]
 
         except UnexpectedResponse as e:
-            logger.error(f"Vector search failed: {e}")
+            logger.error("Vector search failed: %s", e)
             raise
 
     def search_by_category(
@@ -250,7 +250,7 @@ class VectorDBAdapter:
             return {str(r.id): r.vector for r in results if r.vector}
 
         except UnexpectedResponse as e:
-            logger.error(f"Failed to retrieve vectors: {e}")
+            logger.error("Failed to retrieve vectors: %s", e)
             raise
 
     def delete(self, ids: List[str]) -> None:
@@ -266,7 +266,7 @@ class VectorDBAdapter:
                 points_selector=qdrant_models.PointIdsList(points=ids),
             )
         except UnexpectedResponse as e:
-            logger.error(f"Failed to delete vectors: {e}")
+            logger.error("Failed to delete vectors: %s", e)
             raise
 
     def count(self, filter_conditions: Optional[Dict[str, Any]] = None) -> int:
@@ -300,7 +300,7 @@ class VectorDBAdapter:
             return result.count
 
         except UnexpectedResponse as e:
-            logger.error(f"Failed to count vectors: {e}")
+            logger.error("Failed to count vectors: %s", e)
             raise
 
 

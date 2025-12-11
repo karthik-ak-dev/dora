@@ -75,4 +75,3 @@ __all__ = [
     "AsyncSessionLocal",  # Session factory for manual session creation
     "engine",  # Database engine (for migrations, etc.)
 ]
-

@@ -131,10 +131,12 @@ class SecurityUtils:
             expire = datetime.now(timezone.utc) + timedelta(days=7)
 
         # Add standard JWT claims
-        to_encode.update({
-            "exp": expire,
-            "iat": datetime.now(timezone.utc),
-        })
+        to_encode.update(
+            {
+                "exp": expire,
+                "iat": datetime.now(timezone.utc),
+            }
+        )
 
         # Encode the token
         encoded_jwt = jwt.encode(to_encode, secret_key, algorithm=algorithm)
@@ -175,7 +177,7 @@ class SecurityUtils:
                 algorithms=[algorithm],
             )
             return payload
-        except jwt.ExpiredSignatureError:
-            raise ValueError("Token has expired")
+        except jwt.ExpiredSignatureError as exc:
+            raise ValueError("Token has expired") from exc
         except jwt.InvalidTokenError as e:
-            raise ValueError(f"Invalid token: {str(e)}")
+            raise ValueError(f"Invalid token: {str(e)}") from e

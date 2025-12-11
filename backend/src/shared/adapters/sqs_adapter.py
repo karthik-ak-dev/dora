@@ -110,11 +110,11 @@ class SQSAdapter:
             response = self.client.send_message(**params)
             message_id = response["MessageId"]
 
-            logger.info(f"Sent message {message_id} to {queue_url}")
+            logger.info("Sent message %s to %s", message_id, queue_url)
             return message_id
 
         except ClientError as e:
-            logger.error(f"Failed to send message to {queue_url}: {e}")
+            logger.error("Failed to send message to %s: %s", queue_url, e)
             raise
 
     def send_content_processing_job(
@@ -219,7 +219,7 @@ class SQSAdapter:
             return messages
 
         except ClientError as e:
-            logger.error(f"Failed to receive messages from {queue_url}: {e}")
+            logger.error("Failed to receive messages from %s: %s", queue_url, e)
             raise
 
     def delete_message(
@@ -241,10 +241,10 @@ class SQSAdapter:
                 QueueUrl=queue_url,
                 ReceiptHandle=receipt_handle,
             )
-            logger.debug(f"Deleted message from {queue_url}")
+            logger.debug("Deleted message from %s", queue_url)
 
         except ClientError as e:
-            logger.error(f"Failed to delete message: {e}")
+            logger.error("Failed to delete message: %s", e)
             raise
 
     def change_message_visibility(
@@ -271,7 +271,7 @@ class SQSAdapter:
             )
 
         except ClientError as e:
-            logger.error(f"Failed to change message visibility: {e}")
+            logger.error("Failed to change message visibility: %s", e)
             raise
 
 

@@ -16,18 +16,15 @@ Flow:
 
 Example:
 - User has 5 Food saves, 3 Travel saves
-- Clustering for Food: Groups into "Cafe Hopping in Indiranagar" (3 items) + "Recipe Ideas" (2 items)
-- Clustering for Travel: Groups into "Goa Beach Vacation" (3 items)
-"""
+- Clustering for Food: Groups into "Cafe Hopping" (3 items) + "Recipe Ideas" (2 items)
+- Clustering for Travel: Groups into "Goa Beach Vacation" (3 items)."""
 
-from typing import List, Dict, Optional, Tuple, Any
+from typing import List, Dict, Tuple
 from dataclasses import dataclass
 import logging
 
 import numpy as np
 from sqlalchemy.orm import Session
-
-logger = logging.getLogger(__name__)
 
 from ..models.enums import ContentCategory
 from ..models.cluster import Cluster
@@ -35,6 +32,8 @@ from ..models.cluster_membership import ClusterMembership
 from ..models.user_content_save import UserContentSave
 from ..repositories.cluster_repository import ClusterRepository
 from ..repositories.user_content_save_repository import UserContentSaveRepository
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -186,7 +185,7 @@ class ClusteringService:
                 saves_by_category[category].append(save)
 
         # Cluster each category
-        for category in saves_by_category.keys():
+        for category in saves_by_category:
             clusters = self.cluster_user_category(
                 user_id=user_id, content_category=category, embeddings_map=embeddings_map
             )

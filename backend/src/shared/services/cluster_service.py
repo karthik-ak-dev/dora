@@ -20,10 +20,8 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.shared.models.cluster import Cluster
-from src.shared.models.user_content_save import UserContentSave
 from src.shared.models.enums import ContentCategory
 from src.shared.repositories.cluster_repository import ClusterRepository
-from src.shared.core.exceptions import NotFoundError
 
 
 class ClusterService:

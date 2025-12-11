@@ -24,12 +24,11 @@ Example:
 - Tech (1 item) → No clustering (below minimum threshold)
 """
 
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from ...shared.models.enums import ContentCategory
-from ...shared.models.cluster import Cluster
 from ...shared.services.clustering_service import ClusteringService
 from ...shared.repositories.user_content_save_repository import UserContentSaveRepository
 

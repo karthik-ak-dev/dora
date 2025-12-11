@@ -2,9 +2,11 @@
 Content-related Pydantic schemas.
 """
 
-from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional, List, Dict
+
+from pydantic import BaseModel, Field
+
 from ..models.enums import SourcePlatform, ItemStatus, ContentCategory, IntentType
 
 
@@ -48,6 +50,8 @@ class SharedContentResponse(BaseModel):
     created_at: datetime
 
     class Config:
+        """Pydantic config for SharedContentResponse."""
+
         from_attributes = True
 
 
@@ -63,6 +67,8 @@ class UserContentSaveResponse(BaseModel):
     created_at: datetime
 
     class Config:
+        """Pydantic config for UserContentSaveResponse."""
+
         from_attributes = True
 
 

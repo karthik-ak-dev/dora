@@ -33,7 +33,7 @@ SAMPLE SHARED_CONTENT RECORD:
 from typing import TYPE_CHECKING, Any, Optional
 import uuid
 
-from sqlalchemy import String, Text, Integer, Enum as SQLEnum
+from sqlalchemy import Text, Integer, Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 

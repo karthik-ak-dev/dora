@@ -116,26 +116,26 @@ class ContentService:
             await self.shared_content_repo.increment_save_count(existing_content.id)
 
             return save, existing_content, False
-        else:
-            # Create new shared content
-            # content_category will be assigned by AI processing worker
-            new_content = await self.shared_content_repo.create(
-                url=url,
-                url_hash=url_hash,
-                source_platform=platform,
-                status=ItemStatus.PENDING,
-                content_category=None,  # Will be assigned during AI processing
-                save_count=1,
-            )
 
-            # Create save
-            save = await self.user_save_repo.create(
-                user_id=user_id,
-                shared_content_id=new_content.id,
-                raw_share_text=raw_share_text,
-            )
+        # Create new shared content
+        # content_category will be assigned by AI processing worker
+        new_content = await self.shared_content_repo.create(
+            url=url,
+            url_hash=url_hash,
+            source_platform=platform,
+            status=ItemStatus.PENDING,
+            content_category=None,  # Will be assigned during AI processing
+            save_count=1,
+        )
 
-            return save, new_content, True
+        # Create save
+        save = await self.user_save_repo.create(
+            user_id=user_id,
+            shared_content_id=new_content.id,
+            raw_share_text=raw_share_text,
+        )
+
+        return save, new_content, True
 
     async def get_user_saves(
         self,

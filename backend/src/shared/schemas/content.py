@@ -4,7 +4,7 @@ Content-related Pydantic schemas.
 
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict
 from ..models.enums import SourcePlatform, ItemStatus, ContentCategory, IntentType
 
 
@@ -13,6 +13,14 @@ class SaveContentRequest(BaseModel):
 
     url: str = Field(description="URL to save")
     raw_share_text: Optional[str] = Field(None, description="User's personal note")
+
+
+class UpdateSaveRequest(BaseModel):
+    """Request to update a save."""
+
+    raw_share_text: Optional[str] = Field(None, description="User's personal note")
+    is_favorited: Optional[bool] = Field(None, description="Favorite status")
+    is_archived: Optional[bool] = Field(None, description="Archived status")
 
 
 class SharedContentResponse(BaseModel):
@@ -58,6 +66,13 @@ class UserContentSaveResponse(BaseModel):
         from_attributes = True
 
 
+class SaveWithContentResponse(BaseModel):
+    """Response for a save with its content details."""
+
+    save: UserContentSaveResponse
+    content: SharedContentResponse
+
+
 class SaveContentResponse(BaseModel):
     """Response after saving content."""
 
@@ -66,9 +81,27 @@ class SaveContentResponse(BaseModel):
     message: str
 
 
+class PaginatedSavesResponse(BaseModel):
+    """Paginated response for user saves."""
+
+    items: List[SaveWithContentResponse]
+    total: int
+    page: int
+    page_size: int
+    has_next: bool
+    has_prev: bool
+
+
 class ContentByCategoryResponse(BaseModel):
     """Response for content grouped by category."""
 
     category: ContentCategory
-    items: List[SharedContentResponse]
+    items: List[SaveWithContentResponse]
     total_count: int
+
+
+class CategoryCountsResponse(BaseModel):
+    """Response for category counts."""
+
+    counts: Dict[str, int]
+    total: int

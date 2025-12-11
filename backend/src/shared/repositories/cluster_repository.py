@@ -1,97 +1,163 @@
 """
-Cluster repository for data access.
+Cluster Repository
+
+Database operations for AI-generated content clusters.
+
+Common Operations:
+==================
+- get_user_clusters()           → Get all clusters for a user
+- get_user_clusters_by_category() → Filter by content category
+- get_user_clusters_with_counts() → Include item counts
+- get_cluster_with_items()       → Get cluster with all its items
 """
 
 from typing import List, Optional
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import select, func
+from uuid import UUID
 
-from ..models.cluster import Cluster
-from ..models.cluster_membership import ClusterMembership
-from ..models.user_content_save import UserContentSave
-from ..models.enums import ContentCategory
-from .base import BaseRepository
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from src.shared.repositories.base import BaseRepository
+from src.shared.models.cluster import Cluster
+from src.shared.models.cluster_membership import ClusterMembership
+from src.shared.models.user_content_save import UserContentSave
+from src.shared.models.enums import ContentCategory
 
 
 class ClusterRepository(BaseRepository[Cluster]):
-    """Repository for Cluster entity."""
+    """
+    Repository for Cluster database operations.
 
-    def __init__(self, db: Session):
-        super().__init__(Cluster, db)
+    Handles cluster queries with item counts and membership lookups.
+    """
 
-    def get_user_clusters(self, user_id: str) -> List[Cluster]:
-        """Get all clusters for a user."""
-        stmt = select(Cluster).where(Cluster.user_id == user_id).order_by(Cluster.updated_at.desc())
-        return list(self.db.scalars(stmt).all())
+    def __init__(self, session: AsyncSession) -> None:
+        """
+        Initialize ClusterRepository.
 
-    def get_user_clusters_by_category(
-        self, user_id: str, content_category: ContentCategory
+        Args:
+            session: Async database session
+        """
+        super().__init__(Cluster, session)
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # READ OPERATIONS
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    async def get_user_clusters(self, user_id: UUID) -> List[Cluster]:
+        """
+        Get all clusters for a user.
+
+        Args:
+            user_id: User's UUID
+
+        Returns:
+            List of Cluster ordered by most recently updated
+        """
+        result = await self.session.execute(
+            select(Cluster).where(Cluster.user_id == user_id).order_by(Cluster.updated_at.desc())
+        )
+        return list(result.scalars().all())
+
+    async def get_user_clusters_by_category(
+        self,
+        user_id: UUID,
+        content_category: ContentCategory,
     ) -> List[Cluster]:
         """
         Get user's clusters filtered by content category.
 
         Args:
-            user_id: User's ID
-            content_category: The category to filter by
+            user_id: User's UUID
+            content_category: Category to filter by
 
         Returns:
-            List of clusters in that category
+            List of Cluster in that category
         """
-        stmt = (
+        result = await self.session.execute(
             select(Cluster)
-            .where(Cluster.user_id == user_id, Cluster.content_category == content_category)
+            .where(
+                Cluster.user_id == user_id,
+                Cluster.content_category == content_category,
+            )
             .order_by(Cluster.updated_at.desc())
         )
-        return list(self.db.scalars(stmt).all())
+        return list(result.scalars().all())
 
-    def get_user_clusters_with_counts(self, user_id: str) -> List[dict]:
+    async def get_user_clusters_with_counts(
+        self,
+        user_id: UUID,
+    ) -> List[dict]:
         """
         Get all clusters for a user with item counts.
 
+        Returns clusters with the count of items in each.
+
+        Args:
+            user_id: User's UUID
+
         Returns:
-            List of dicts with cluster info and item_count
+            List of dicts with cluster and item_count
         """
-        stmt = (
-            select(Cluster, func.count(ClusterMembership.user_save_id).label("item_count"))
+        result = await self.session.execute(
+            select(
+                Cluster,
+                func.count(ClusterMembership.user_save_id).label("item_count"),
+            )
             .outerjoin(ClusterMembership, Cluster.id == ClusterMembership.cluster_id)
             .where(Cluster.user_id == user_id)
             .group_by(Cluster.id)
             .order_by(Cluster.updated_at.desc())
         )
 
-        results = self.db.execute(stmt).all()
-        return [{"cluster": row.Cluster, "item_count": row.item_count} for row in results]
+        rows = result.all()
+        return [{"cluster": row.Cluster, "item_count": row.item_count} for row in rows]
 
-    def get_cluster_with_items(self, cluster_id: str, user_id: str) -> Optional[dict]:
+    async def get_cluster_with_items(
+        self,
+        cluster_id: UUID,
+        user_id: UUID,
+    ) -> Optional[dict]:
         """
         Get cluster with all its items.
 
+        Verifies user ownership before returning.
+
         Args:
-            cluster_id: Cluster ID
-            user_id: User ID (for access control)
+            cluster_id: Cluster UUID
+            user_id: User UUID (for access control)
 
         Returns:
-            Dict with cluster and items, or None if not found
+            Dict with cluster, items, and item_count, or None if not found
         """
-        cluster = self.get_by_id(cluster_id)
-        if not cluster or str(cluster.user_id) != user_id:
+        cluster = await self.get(cluster_id)
+        if not cluster or cluster.user_id != user_id:
             return None
 
         # Get items via ClusterMembership
-        stmt = (
+        result = await self.session.execute(
             select(UserContentSave)
             .join(ClusterMembership, UserContentSave.id == ClusterMembership.user_save_id)
             .where(ClusterMembership.cluster_id == cluster_id)
-            .options(joinedload(UserContentSave.shared_content))
+            .options(selectinload(UserContentSave.shared_content))
             .order_by(UserContentSave.created_at.desc())
         )
-        items = list(self.db.scalars(stmt).unique().all())
+        items = list(result.scalars().unique().all())
 
-        return {"cluster": cluster, "items": items, "item_count": len(items)}
+        return {
+            "cluster": cluster,
+            "items": items,
+            "item_count": len(items),
+        }
 
-    def create_cluster(
+    # ═══════════════════════════════════════════════════════════════════════════
+    # CREATE/DELETE OPERATIONS
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    async def create_cluster(
         self,
-        user_id: str,
+        user_id: UUID,
         content_category: ContentCategory,
         label: str,
         short_description: Optional[str] = None,
@@ -100,47 +166,49 @@ class ClusterRepository(BaseRepository[Cluster]):
         Create a new cluster.
 
         Args:
-            user_id: Owner user ID
-            content_category: The category this cluster belongs to
+            user_id: Owner user UUID
+            content_category: Category this cluster belongs to
             label: Human-readable cluster name
             short_description: Optional description
 
         Returns:
             Created Cluster
         """
-        cluster = Cluster(
+        return await self.create(
             user_id=user_id,
             content_category=content_category,
             label=label,
             short_description=short_description,
         )
-        self.db.add(cluster)
-        self.db.commit()
-        self.db.refresh(cluster)
-        return cluster
 
-    def delete_user_clusters_by_category(
-        self, user_id: str, content_category: ContentCategory
+    async def delete_user_clusters_by_category(
+        self,
+        user_id: UUID,
+        content_category: ContentCategory,
     ) -> int:
         """
         Delete all clusters for a user in a specific category.
+
         Used before re-clustering.
 
         Args:
-            user_id: User ID
+            user_id: User UUID
             content_category: Category to delete clusters for
 
         Returns:
             Number of clusters deleted
         """
-        stmt = select(Cluster).where(
-            Cluster.user_id == user_id, Cluster.content_category == content_category
+        result = await self.session.execute(
+            select(Cluster).where(
+                Cluster.user_id == user_id,
+                Cluster.content_category == content_category,
+            )
         )
-        clusters = list(self.db.scalars(stmt).all())
+        clusters = list(result.scalars().all())
         count = len(clusters)
 
         for cluster in clusters:
-            self.db.delete(cluster)
+            await self.session.delete(cluster)
 
-        self.db.commit()
+        await self.session.flush()
         return count

@@ -1,138 +1,165 @@
 """
-SharedContent repository for data access.
+SharedContent Repository
+
+Database operations specific to the SharedContent model.
+
+Common Operations:
+==================
+- get_by_url_hash()    → Find content by URL hash (for deduplication)
+- update_status()      → Update processing status
+- increment/decrement_save_count() → Update save statistics
 """
 
-from typing import Optional, List, Any
-from sqlalchemy.orm import Session
-from sqlalchemy import select
+from typing import Optional
+from uuid import UUID
 
-from ..models.shared_content import SharedContent
-from ..models.enums import ItemStatus, ContentCategory
-from .base import BaseRepository
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.shared.repositories.base import BaseRepository
+from src.shared.models.shared_content import SharedContent
+from src.shared.models.enums import ItemStatus
 
 
 class SharedContentRepository(BaseRepository[SharedContent]):
-    """Repository for SharedContent entity."""
+    """
+    Repository for SharedContent database operations.
 
-    def __init__(self, db: Session):
-        super().__init__(SharedContent, db)
+    Handles content deduplication via URL hash lookups
+    and processing status management.
+    """
 
-    def get_by_url_hash(self, url_hash: str) -> Optional[SharedContent]:
-        """Get content by URL hash (deduplication key)."""
-        stmt = select(SharedContent).where(SharedContent.url_hash == url_hash)
-        return self.db.scalar(stmt)
-
-    def get_by_status(self, status: ItemStatus, limit: int = 100) -> List[SharedContent]:
-        """Get content by processing status."""
-        stmt = select(SharedContent).where(SharedContent.status == status).limit(limit)
-        return list(self.db.scalars(stmt).all())
-
-    def get_by_category(
-        self,
-        content_category: ContentCategory,
-        status: Optional[ItemStatus] = None,
-        limit: int = 100,
-    ) -> List[SharedContent]:
-        """Get content by category with optional status filter."""
-        stmt = select(SharedContent).where(SharedContent.content_category == content_category)
-
-        if status:
-            stmt = stmt.where(SharedContent.status == status)
-
-        stmt = stmt.limit(limit).order_by(SharedContent.created_at.desc())
-        return list(self.db.scalars(stmt).all())
-
-    def increment_save_count(self, content_id: str) -> None:
-        """Increment save count for content."""
-        content = self.get_by_id(content_id)
-        if content:
-            content.save_count += 1
-            self.db.commit()
-
-    def decrement_save_count(self, content_id: str) -> None:
-        """Decrement save count for content."""
-        content = self.get_by_id(content_id)
-        if content and content.save_count > 0:
-            content.save_count -= 1
-            self.db.commit()
-
-    def update(self, content_id: str, **kwargs: Any) -> Optional[SharedContent]:
+    def __init__(self, session: AsyncSession) -> None:
         """
-        Update SharedContent fields.
+        Initialize SharedContentRepository.
 
         Args:
-            content_id: The SharedContent ID
-            **kwargs: Fields to update
+            session: Async database session
+        """
+        super().__init__(SharedContent, session)
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # LOOKUP METHODS
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    async def get_by_url_hash(self, url_hash: str) -> Optional[SharedContent]:
+        """
+        Get content by URL hash.
+
+        URL hash is used for deduplication - same URL always has same hash.
+
+        Args:
+            url_hash: SHA256 hash of normalized URL
 
         Returns:
-            Updated SharedContent or None if not found
+            SharedContent if found, None otherwise
+
+        Example:
+            existing = await repo.get_by_url_hash(url_hash)
+            if existing:
+                print("Content already exists!")
         """
-        content = self.get_by_id(content_id)
-        if not content:
-            return None
+        result = await self.session.execute(
+            select(SharedContent).where(SharedContent.url_hash == url_hash)
+        )
+        return result.scalar_one_or_none()
 
-        for key, value in kwargs.items():
-            if hasattr(content, key):
-                setattr(content, key, value)
-
-        self.db.commit()
-        self.db.refresh(content)
-        return content
-
-    def update_after_processing(
+    async def get_by_status(
         self,
-        content_id: str,
-        content_category: ContentCategory,
-        topic_main: Optional[str] = None,
-        subcategories: Optional[List[str]] = None,
-        locations: Optional[List[str]] = None,
-        entities: Optional[List[str]] = None,
-        embedding_id: Optional[str] = None,
-        **kwargs: Any,
+        status: ItemStatus,
+        offset: int = 0,
+        limit: int = 100,
+    ) -> list[SharedContent]:
+        """
+        Get content by processing status.
+
+        Useful for finding content that needs processing.
+
+        Args:
+            status: Status to filter by (PENDING, READY, FAILED)
+            offset: Pagination offset
+            limit: Pagination limit
+
+        Returns:
+            List of SharedContent with matching status
+        """
+        result = await self.session.execute(
+            select(SharedContent)
+            .where(SharedContent.status == status)
+            .order_by(SharedContent.created_at.asc())
+            .offset(offset)
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # UPDATE METHODS
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    async def update_status(
+        self,
+        content_id: UUID,
+        status: ItemStatus,
+        error_message: Optional[str] = None,
     ) -> Optional[SharedContent]:
         """
-        Update SharedContent after AI processing completes.
-
-        This sets the authoritative content_category and transitions to READY status.
+        Update processing status.
 
         Args:
-            content_id: The SharedContent ID
-            content_category: The classified category (required, strong classification)
-            topic_main: Main topic extracted by AI
-            subcategories: Fine-grained tags
-            locations: Locations mentioned
-            entities: Entities (people, brands, products)
-            embedding_id: Vector DB reference
-            **kwargs: Additional fields to update
+            content_id: Content UUID
+            status: New status
+            error_message: Error message if status is FAILED
 
         Returns:
-            Updated SharedContent
+            Updated content or None if not found
         """
-        content = self.get_by_id(content_id)
+        content = await self.get(content_id)
         if not content:
             return None
 
-        # Set authoritative classification
-        content.content_category = content_category
-        content.status = ItemStatus.READY
+        content.status = status
+        if error_message and status == ItemStatus.FAILED:
+            # Store error in metadata or dedicated field if needed
+            pass
 
-        # Set optional fields
-        if topic_main is not None:
-            content.topic_main = topic_main
-        if subcategories is not None:
-            content.subcategories = subcategories
-        if locations is not None:
-            content.locations = locations
-        if entities is not None:
-            content.entities = entities
-        if embedding_id is not None:
-            content.embedding_id = embedding_id
+        await self.session.flush()
+        await self.session.refresh(content)
+        return content
 
-        # Set any additional fields
-        for key, value in kwargs.items():
-            if hasattr(content, key):
-                setattr(content, key, value)
+    async def increment_save_count(self, content_id: UUID) -> Optional[SharedContent]:
+        """
+        Increment the save count when a user saves content.
 
-        self.db.commit()
-        self.db.refresh(content)
+        Args:
+            content_id: Content UUID
+
+        Returns:
+            Updated content or None if not found
+        """
+        content = await self.get(content_id)
+        if not content:
+            return None
+
+        content.save_count = (content.save_count or 0) + 1
+        await self.session.flush()
+        await self.session.refresh(content)
+        return content
+
+    async def decrement_save_count(self, content_id: UUID) -> Optional[SharedContent]:
+        """
+        Decrement the save count when a user removes their save.
+
+        Args:
+            content_id: Content UUID
+
+        Returns:
+            Updated content or None if not found
+        """
+        content = await self.get(content_id)
+        if not content:
+            return None
+
+        content.save_count = max(0, (content.save_count or 0) - 1)
+        await self.session.flush()
+        await self.session.refresh(content)
         return content

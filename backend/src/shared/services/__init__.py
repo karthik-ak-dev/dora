@@ -1,58 +1,40 @@
 """
-Service layer package.
+Business Logic Services
 
-ARCHITECTURE NOTE: Service Layer Pattern
-=========================================
+Services encapsulate business logic and coordinate between repositories,
+external services, and domain rules.
 
-The service layer sits between handlers (API/Worker) and repositories (data access).
+Service Pattern:
+================
+    Handler → Service → Repository → Database
+                ↘ External APIs
 
-RESPONSIBILITY:
-- Business logic and orchestration
-- Transaction management
-- Validation of business rules
-- Coordination of multiple repositories
-- Integration with external services (via adapters)
+Services should:
+- Contain business logic and validation
+- Coordinate multiple repositories if needed
+- Handle transactions (via session)
+- NOT handle HTTP concerns (that's for handlers)
 
-WHAT BELONGS HERE:
-✅ Business logic (e.g., "user can't save same content twice")
-✅ Multi-step operations (e.g., "create user + send welcome email")
-✅ Data transformation for business needs
-✅ Calling multiple repositories
-✅ Using utility functions (security, validation)
+Available Services:
+===================
+- AuthService: User registration and authentication
+- ContentService: Content saving, retrieval, and organization
+- ClusterService: AI-generated content cluster management
 
-WHAT DOESN'T BELONG HERE:
-❌ HTTP request/response handling (that's in handlers)
-❌ Database queries (that's in repositories)
-❌ Direct database access (use repositories)
-❌ Framework-specific code (FastAPI, etc.)
+Usage:
+======
+    from src.shared.services import AuthService, ContentService
 
-DEPENDENCY FLOW:
-Handler/Processor → Service → Repository → Model
-                  ↘ Adapters ↗
-
-REUSABILITY:
-Services are shared between:
-- API handlers (HTTP endpoints)
-- Worker processors (background jobs)
-- CLI scripts
-- Tests
-
-This ensures business logic is written once and reused everywhere.
-
-EXAMPLE:
---------
-# ❌ BAD - Business logic in handler
-@router.post("/register")
-async def register(data, db):
-    if user_repo.email_exists(data.email):  # ← Business logic
-        raise HTTPException(...)
-    password_hash = hash_password(data.password)  # ← Business logic
-    user = user_repo.create(...)
-    return user
-
-# ✅ GOOD - Business logic in service
-@router.post("/register")
-async def register(data, auth_service):
-    user, token = auth_service.register_user(data.email, data.password)
-    return {"user": user, "token": token}
+    service = AuthService(db)
+    user, token, expires = await service.register_user(email, password)
 """
+
+from src.shared.services.auth_service import AuthService
+from src.shared.services.content_service import ContentService
+from src.shared.services.cluster_service import ClusterService
+
+__all__ = [
+    "AuthService",
+    "ContentService",
+    "ClusterService",
+]

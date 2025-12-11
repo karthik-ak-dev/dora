@@ -1,10 +1,10 @@
 -r base.txt
 
 # Worker-specific dependencies
-boto3==1.34.22  # AWS SDK
-openai==1.10.0  # OpenAI API
-qdrant-client==1.7.0  # Vector DB
-scikit-learn==1.4.0  # Clustering
-yt-dlp==2024.1.7  # YouTube downloader
-beautifulsoup4==4.12.3  # Web scraping
-tenacity==8.2.3  # Retry logic
+boto3>=1.34.0           # AWS SDK (SQS)
+openai>=1.10.0          # OpenAI API
+qdrant-client>=1.7.0    # Vector DB
+scikit-learn>=1.4.0     # Clustering
+yt-dlp>=2024.1.0        # YouTube downloader
+beautifulsoup4>=4.12.0  # Web scraping
+tenacity>=8.2.0         # Retry logic

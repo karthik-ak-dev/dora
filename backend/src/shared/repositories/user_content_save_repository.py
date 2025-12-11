@@ -1,62 +1,140 @@
 """
-UserContentSave repository for data access.
+UserContentSave Repository
+
+Database operations for user content saves.
+
+Common Operations:
+==================
+- get_user_saves()           → Get paginated saves for a user
+- get_user_save()            → Get specific save for a user
+- get_user_saves_by_category() → Filter by content category
+- get_user_saves_with_content() → Include SharedContent in results
 """
 
-from typing import Optional, List
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import select
+from typing import List, Optional
+from uuid import UUID
 
-from ..models.user_content_save import UserContentSave
-from ..models.shared_content import SharedContent
-from ..models.enums import ContentCategory, ItemStatus
-from .base import BaseRepository
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from src.shared.repositories.base import BaseRepository
+from src.shared.models.user_content_save import UserContentSave
+from src.shared.models.shared_content import SharedContent
+from src.shared.models.enums import ContentCategory, ItemStatus
 
 
 class UserContentSaveRepository(BaseRepository[UserContentSave]):
-    """Repository for UserContentSave entity."""
+    """
+    Repository for UserContentSave database operations.
 
-    def __init__(self, db: Session):
-        super().__init__(UserContentSave, db)
+    Handles user-specific content saves with filtering and eager loading.
+    """
 
-    def get_user_save(self, user_id: str, shared_content_id: str) -> Optional[UserContentSave]:
-        """Check if user already saved this content."""
-        stmt = select(UserContentSave).where(
-            UserContentSave.user_id == user_id,
-            UserContentSave.shared_content_id == shared_content_id,
-        )
-        return self.db.scalar(stmt)
+    def __init__(self, session: AsyncSession) -> None:
+        """
+        Initialize UserContentSaveRepository.
 
-    def get_user_saves(
-        self, user_id: str, skip: int = 0, limit: int = 100, include_archived: bool = False
-    ) -> List[UserContentSave]:
-        """Get all saves for a user with pagination."""
-        stmt = select(UserContentSave).where(UserContentSave.user_id == user_id)
+        Args:
+            session: Async database session
+        """
+        super().__init__(UserContentSave, session)
 
-        if not include_archived:
-            stmt = stmt.where(UserContentSave.is_archived == False)
+    # ═══════════════════════════════════════════════════════════════════════════
+    # READ OPERATIONS
+    # ═══════════════════════════════════════════════════════════════════════════
 
-        stmt = stmt.options(joinedload(UserContentSave.shared_content))
-        stmt = stmt.offset(skip).limit(limit).order_by(UserContentSave.created_at.desc())
-
-        return list(self.db.scalars(stmt).all())
-
-    def get_user_saves_with_content(
-        self, user_id: str, include_archived: bool = False
-    ) -> List[UserContentSave]:
-        """Get all saves for a user with SharedContent eagerly loaded."""
-        stmt = select(UserContentSave).where(UserContentSave.user_id == user_id)
-
-        if not include_archived:
-            stmt = stmt.where(UserContentSave.is_archived == False)
-
-        stmt = stmt.options(joinedload(UserContentSave.shared_content))
-        stmt = stmt.order_by(UserContentSave.created_at.desc())
-
-        return list(self.db.scalars(stmt).unique().all())
-
-    def get_user_saves_by_category(
+    async def get_user_save(
         self,
-        user_id: str,
+        user_id: UUID,
+        shared_content_id: UUID,
+    ) -> Optional[UserContentSave]:
+        """
+        Get a specific save for a user and content.
+
+        Used to check if user already saved specific content.
+
+        Args:
+            user_id: User's UUID
+            shared_content_id: Content UUID
+
+        Returns:
+            UserContentSave if exists, None otherwise
+        """
+        result = await self.session.execute(
+            select(UserContentSave).where(
+                UserContentSave.user_id == user_id,
+                UserContentSave.shared_content_id == shared_content_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def get_user_saves(
+        self,
+        user_id: UUID,
+        skip: int = 0,
+        limit: int = 100,
+        include_archived: bool = False,
+    ) -> List[UserContentSave]:
+        """
+        Get paginated saves for a user.
+
+        Args:
+            user_id: User's UUID
+            skip: Number of records to skip
+            limit: Max records to return
+            include_archived: Include archived saves
+
+        Returns:
+            List of UserContentSave
+        """
+        query = (
+            select(UserContentSave)
+            .options(selectinload(UserContentSave.shared_content))
+            .where(UserContentSave.user_id == user_id)
+        )
+
+        if not include_archived:
+            query = query.where(UserContentSave.is_archived == False)
+
+        query = query.order_by(UserContentSave.created_at.desc())
+        query = query.offset(skip).limit(limit)
+
+        result = await self.session.execute(query)
+        return list(result.scalars().all())
+
+    async def get_user_saves_with_content(
+        self,
+        user_id: UUID,
+        include_archived: bool = False,
+    ) -> List[UserContentSave]:
+        """
+        Get all saves for a user with SharedContent eagerly loaded.
+
+        Args:
+            user_id: User's UUID
+            include_archived: Include archived saves
+
+        Returns:
+            List of UserContentSave with shared_content populated
+        """
+        query = (
+            select(UserContentSave)
+            .options(selectinload(UserContentSave.shared_content))
+            .where(UserContentSave.user_id == user_id)
+        )
+
+        if not include_archived:
+            query = query.where(UserContentSave.is_archived == False)
+
+        query = query.order_by(UserContentSave.created_at.desc())
+
+        result = await self.session.execute(query)
+        return list(result.scalars().all())
+
+    async def get_user_saves_by_category(
+        self,
+        user_id: UUID,
         content_category: ContentCategory,
         include_pending: bool = False,
         include_archived: bool = False,
@@ -65,17 +143,18 @@ class UserContentSaveRepository(BaseRepository[UserContentSave]):
         Get user's saves filtered by content category.
 
         Args:
-            user_id: User's ID
-            content_category: The category to filter by
-            include_pending: Whether to include content still being processed
-            include_archived: Whether to include archived saves
+            user_id: User's UUID
+            content_category: Category to filter by
+            include_pending: Include content still being processed
+            include_archived: Include archived saves
 
         Returns:
-            List of UserContentSave objects with matching category
+            List of UserContentSave in the category
         """
-        stmt = (
+        query = (
             select(UserContentSave)
             .join(SharedContent)
+            .options(selectinload(UserContentSave.shared_content))
             .where(
                 UserContentSave.user_id == user_id,
                 SharedContent.content_category == content_category,
@@ -83,48 +162,32 @@ class UserContentSaveRepository(BaseRepository[UserContentSave]):
         )
 
         if not include_pending:
-            stmt = stmt.where(SharedContent.status == ItemStatus.READY)
+            query = query.where(SharedContent.status == ItemStatus.READY)
 
         if not include_archived:
-            stmt = stmt.where(UserContentSave.is_archived == False)
+            query = query.where(UserContentSave.is_archived == False)
 
-        stmt = stmt.options(joinedload(UserContentSave.shared_content))
-        stmt = stmt.order_by(UserContentSave.created_at.desc())
+        query = query.order_by(UserContentSave.created_at.desc())
 
-        return list(self.db.scalars(stmt).unique().all())
+        result = await self.session.execute(query)
+        return list(result.scalars().all())
 
-    def get_user_saves_for_clustering(
-        self, user_id: str, content_category: ContentCategory
-    ) -> List[UserContentSave]:
+    async def count_user_saves(
+        self,
+        user_id: UUID,
+        include_archived: bool = False,
+    ) -> int:
         """
-        Get user's saves ready for clustering within a category.
-
-        Only returns saves where:
-        - SharedContent status is READY
-        - SharedContent has the specified content_category
-        - SharedContent has an embedding_id (vectorized)
-        - Not archived by user
+        Count total saves for a user.
 
         Args:
-            user_id: User's ID
-            content_category: The category to get saves for
+            user_id: User's UUID
+            include_archived: Include archived saves
 
         Returns:
-            List of UserContentSave ready for clustering
+            Number of saves
         """
-        stmt = (
-            select(UserContentSave)
-            .join(SharedContent)
-            .where(
-                UserContentSave.user_id == user_id,
-                UserContentSave.is_archived == False,
-                SharedContent.content_category == content_category,
-                SharedContent.status == ItemStatus.READY,
-                SharedContent.embedding_id.isnot(None),
-            )
-        )
-
-        stmt = stmt.options(joinedload(UserContentSave.shared_content))
-        stmt = stmt.order_by(UserContentSave.created_at.desc())
-
-        return list(self.db.scalars(stmt).unique().all())
+        filters = {"user_id": user_id}
+        if not include_archived:
+            filters["is_archived"] = False
+        return await self.count(filters=filters)

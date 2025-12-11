@@ -20,10 +20,14 @@ Example:
 - Clustering for Travel: Groups into "Goa Beach Vacation" (3 items)
 """
 
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Any
 from dataclasses import dataclass
+import logging
+
 import numpy as np
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from ..models.enums import ContentCategory
 from ..models.cluster import Cluster
@@ -274,21 +278,111 @@ class ClusteringService:
             ClusterLabelResult with label and description
         """
         # Build context from sample items
+        items_context = []
         topics = []
         locations = []
 
         for save in sample_saves:
             content = save.shared_content
-            if content.topic_main:
-                topics.append(content.topic_main)
-            if content.locations:
-                locations.extend(content.locations)
+            item_info = {}
 
-        # Remove duplicates
+            if content.topic_main:
+                item_info["topic"] = content.topic_main
+                topics.append(content.topic_main)
+            if content.title:
+                item_info["title"] = content.title
+            if content.locations:
+                item_info["locations"] = content.locations[:2]
+                locations.extend(content.locations)
+            if content.subcategories:
+                item_info["tags"] = content.subcategories[:3]
+
+            if item_info:
+                items_context.append(item_info)
+
+        # Try LLM-based labeling first
+        try:
+            return self._generate_label_with_llm(
+                content_category=content_category,
+                items_context=items_context,
+            )
+        except Exception:
+            # Fallback to rule-based labeling
+            return self._generate_label_fallback(
+                content_category=content_category,
+                topics=topics,
+                locations=locations,
+            )
+
+    def _generate_label_with_llm(
+        self,
+        content_category: ContentCategory,
+        items_context: List[Dict],
+    ) -> ClusterLabelResult:
+        """
+        Generate cluster label using LLM.
+
+        Args:
+            content_category: Category of items
+            items_context: List of item context dicts
+
+        Returns:
+            ClusterLabelResult from LLM
+        """
+        from ..adapters.openai_adapter import get_openai_adapter
+        import json
+
+        openai = get_openai_adapter()
+
+        system_prompt = """You are naming a cluster of saved content for a user.
+Generate a short, catchy label (3-5 words) and a one-sentence description.
+
+Output JSON with exactly these fields:
+{
+  "label": "Short catchy name",
+  "description": "One sentence describing what this cluster contains."
+}
+
+Guidelines:
+- Label should be specific and memorable
+- Use location names if items share a location
+- Use activity/theme if items share a common theme
+- Avoid generic names like "Food Collection" - be specific"""
+
+        user_prompt = f"""Category: {content_category.value}
+
+Items in this cluster:
+{json.dumps(items_context, indent=2)}
+
+Generate a label and description for this cluster."""
+
+        result = openai.complete_json(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=0.3,
+        )
+
+        return ClusterLabelResult(
+            label=result.get("label", f"{content_category.value} Collection"),
+            short_description=result.get(
+                "description",
+                f"A collection of {content_category.value.lower()} content.",
+            ),
+        )
+
+    def _generate_label_fallback(
+        self,
+        content_category: ContentCategory,
+        topics: List[str],
+        locations: List[str],
+    ) -> ClusterLabelResult:
+        """
+        Fallback rule-based label generation.
+
+        Used when LLM is unavailable.
+        """
         unique_locations = list(set(locations))[:3]
 
-        # Generate label based on topics and locations
-        # This is a placeholder - actual implementation would use LLM
         if unique_locations:
             location_str = unique_locations[0]
             label = f"{content_category.value} in {location_str}"
@@ -296,7 +390,6 @@ class ClusteringService:
                 f"Saved {content_category.value.lower()} content related to {location_str}."
             )
         elif topics:
-            # Extract common theme from topics
             label = f"{content_category.value} Collection"
             description = f"A collection of {content_category.value.lower()} content."
         else:

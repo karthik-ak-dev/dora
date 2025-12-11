@@ -1,14 +1,19 @@
 """
-Cluster-related Pydantic schemas.
+Cluster Schemas
+
+Request/response models for cluster endpoints.
 """
 
-from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional, List
-from ..models.enums import ContentCategory
+from typing import Any, List, Optional
+
+from pydantic import BaseModel, Field
+
+from src.shared.schemas.common import BaseSchema
+from src.shared.models.enums import ContentCategory
 
 
-class ClusterResponse(BaseModel):
+class ClusterResponse(BaseSchema):
     """
     Response for cluster.
 
@@ -17,30 +22,22 @@ class ClusterResponse(BaseModel):
     """
 
     id: str
-    user_id: str
     content_category: ContentCategory = Field(
         description="The category this cluster belongs to (Travel, Food, Tech, etc.)"
     )
     label: str = Field(
         description="AI-generated human-readable name (e.g., 'Cafe Hopping in Indiranagar')"
     )
-    short_description: Optional[str] = Field(None, description="AI-generated one-sentence summary")
+    short_description: Optional[str] = Field(
+        None,
+        description="AI-generated one-sentence summary",
+    )
     item_count: int = Field(default=0, description="Number of items in this cluster")
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
 
-
-class ClusterWithItemsResponse(BaseModel):
-    """Response for cluster with its items."""
-
-    cluster: ClusterResponse
-    items: List["ClusterItemResponse"]
-
-
-class ClusterItemResponse(BaseModel):
+class ClusterItemResponse(BaseSchema):
     """Response for an item within a cluster."""
 
     save_id: str
@@ -51,8 +48,19 @@ class ClusterItemResponse(BaseModel):
     raw_share_text: Optional[str] = None
     saved_at: datetime
 
-    class Config:
-        from_attributes = True
+
+class ClusterWithItemsResponse(BaseModel):
+    """Response for cluster with its items."""
+
+    cluster: ClusterResponse
+    items: List[Any]  # Flexible item structure
+
+
+class ClusterListResponse(BaseModel):
+    """Response for listing clusters."""
+
+    clusters: List[ClusterResponse]
+    total: int
 
 
 class ClustersByCategoryResponse(BaseModel):
@@ -68,6 +76,6 @@ class CreateClusterRequest(BaseModel):
     """Request to manually create a cluster (future feature)."""
 
     content_category: ContentCategory
-    label: str
-    short_description: Optional[str] = None
+    label: str = Field(min_length=1, max_length=255)
+    short_description: Optional[str] = Field(None, max_length=500)
     save_ids: List[str] = Field(description="List of user_content_save IDs to add to the cluster")

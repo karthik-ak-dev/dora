@@ -1,145 +1,201 @@
 """
-Cluster service.
-Business logic for cluster operations.
+Cluster Service
 
-CLUSTERING ARCHITECTURE:
-- Clusters are created WITHIN a content_category (not across categories)
-- Each cluster has a content_category field matching its items
-- All items in a cluster have the same SharedContent.content_category
+Business logic for content cluster operations.
 
-Use ClusteringService for the actual clustering algorithm.
-Use this service for CRUD operations on clusters.
+Clusters are AI-generated groups of semantically similar content
+that belong to the same content category.
+
+Usage:
+======
+    from src.shared.services.cluster_service import ClusterService
+
+    service = ClusterService(db)
+    clusters = await service.get_user_clusters(user_id)
 """
 
-from typing import List, Dict, Optional
-from sqlalchemy.orm import Session
+from typing import Dict, List, Optional
+from uuid import UUID
 
-from ..repositories.cluster_repository import ClusterRepository
-from ..models.cluster import Cluster
-from ..models.enums import ContentCategory
-from ..schemas.cluster import ClusterResponse, ClusterWithItemsResponse, ClusterItemResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.shared.models.cluster import Cluster
+from src.shared.models.user_content_save import UserContentSave
+from src.shared.models.enums import ContentCategory
+from src.shared.repositories.cluster_repository import ClusterRepository
+from src.shared.core.exceptions import NotFoundError
 
 
 class ClusterService:
-    """Service for cluster-related business logic."""
+    """
+    Service for cluster-related business logic.
 
-    def __init__(self, db: Session):
-        self.db = db
-        self.cluster_repo = ClusterRepository(db)
+    Handles:
+    - Retrieving user's clusters
+    - Getting cluster details with items
+    - Category-based filtering
+    """
 
-    def get_user_clusters(self, user_id: str) -> List[dict]:
+    def __init__(self, session: AsyncSession) -> None:
         """
-        Get all clusters for a user with item counts.
+        Initialize ClusterService.
 
         Args:
-            user_id: User's ID
+            session: Async database session
+        """
+        self.session = session
+        self.repo = ClusterRepository(session)
+
+    async def get_user_clusters(self, user_id: UUID) -> List[Cluster]:
+        """
+        Get all clusters for a user.
+
+        Args:
+            user_id: User's UUID
 
         Returns:
-            List of dicts with cluster and item_count
+            List of Cluster ordered by most recently updated
         """
-        return self.cluster_repo.get_user_clusters_with_counts(user_id)
+        return await self.repo.get_user_clusters(user_id)
 
-    def get_user_clusters_by_category(
-        self, user_id: str, content_category: ContentCategory
+    async def get_user_clusters_by_category(
+        self,
+        user_id: UUID,
+        content_category: ContentCategory,
     ) -> List[Cluster]:
         """
         Get user's clusters filtered by content category.
 
         Args:
-            user_id: User's ID
+            user_id: User's UUID
             content_category: Category to filter by
 
         Returns:
-            List of clusters in that category
+            List of Cluster in that category
         """
-        return self.cluster_repo.get_user_clusters_by_category(
-            user_id=user_id, content_category=content_category
-        )
+        return await self.repo.get_user_clusters_by_category(user_id, content_category)
 
-    def get_cluster_by_id(self, cluster_id: str, user_id: str) -> Cluster:
+    async def get_user_clusters_with_counts(
+        self,
+        user_id: UUID,
+    ) -> List[Dict]:
         """
-        Get cluster by ID, ensuring it belongs to the user.
+        Get all clusters for a user with item counts.
 
         Args:
-            cluster_id: Cluster ID
-            user_id: User's ID
+            user_id: User's UUID
 
         Returns:
-            Cluster object
-
-        Raises:
-            ValueError: If cluster not found or doesn't belong to user
+            List of dicts with cluster and item_count keys
         """
-        cluster = self.cluster_repo.get_by_id(cluster_id)
+        return await self.repo.get_user_clusters_with_counts(user_id)
 
-        if not cluster:
-            raise ValueError("Cluster not found")
+    async def get_cluster_by_id(
+        self,
+        cluster_id: UUID,
+        user_id: UUID,
+    ) -> Optional[Cluster]:
+        """
+        Get a cluster by ID, ensuring it belongs to the user.
 
-        if str(cluster.user_id) != user_id:
-            raise ValueError("Cluster does not belong to user")
+        Args:
+            cluster_id: Cluster UUID
+            user_id: User UUID (for access control)
 
-        return cluster
+        Returns:
+            Cluster if found and belongs to user, None otherwise
+        """
+        cluster = await self.repo.get(cluster_id)
+        if cluster and cluster.user_id == user_id:
+            return cluster
+        return None
 
-    def get_cluster_with_items(self, cluster_id: str, user_id: str) -> Optional[dict]:
+    async def get_cluster_with_items(
+        self,
+        cluster_id: UUID,
+        user_id: UUID,
+    ) -> Optional[Dict]:
         """
         Get cluster with all its items.
 
         Args:
-            cluster_id: Cluster ID
-            user_id: User ID (for access control)
+            cluster_id: Cluster UUID
+            user_id: User UUID (for access control)
 
         Returns:
-            Dict with cluster, items, and item_count
+            Dict with cluster, items, and item_count, or None if not found
 
-        Raises:
-            ValueError: If cluster not found or doesn't belong to user
+        Example:
+            result = await service.get_cluster_with_items(cluster_id, user_id)
+            if result:
+                print(f"Cluster: {result['cluster'].label}")
+                print(f"Items: {result['item_count']}")
         """
-        result = self.cluster_repo.get_cluster_with_items(cluster_id, user_id)
+        return await self.repo.get_cluster_with_items(cluster_id, user_id)
 
-        if not result:
-            raise ValueError("Cluster not found or access denied")
-
-        return result
-
-    def get_clusters_grouped_by_category(self, user_id: str) -> Dict[ContentCategory, List[dict]]:
+    async def create_cluster(
+        self,
+        user_id: UUID,
+        content_category: ContentCategory,
+        label: str,
+        short_description: Optional[str] = None,
+    ) -> Cluster:
         """
-        Get all user's clusters grouped by content category.
+        Create a new cluster.
 
         Args:
-            user_id: User's ID
+            user_id: Owner user UUID
+            content_category: Category this cluster belongs to
+            label: Human-readable cluster name
+            short_description: Optional description
 
         Returns:
-            Dict mapping category to list of cluster dicts
+            Created Cluster
         """
-        clusters_with_counts = self.cluster_repo.get_user_clusters_with_counts(user_id)
+        return await self.repo.create_cluster(
+            user_id=user_id,
+            content_category=content_category,
+            label=label,
+            short_description=short_description,
+        )
 
-        grouped: Dict[ContentCategory, List[dict]] = {}
-        for item in clusters_with_counts:
-            cluster = item["cluster"]
-            category = cluster.content_category
-
-            if category not in grouped:
-                grouped[category] = []
-            grouped[category].append(item)
-
-        return grouped
-
-    def get_category_summary(self, user_id: str) -> List[dict]:
+    async def delete_cluster(
+        self,
+        cluster_id: UUID,
+        user_id: UUID,
+    ) -> bool:
         """
-        Get summary of clusters per category for a user.
+        Delete a cluster.
+
+        Args:
+            cluster_id: Cluster UUID
+            user_id: User UUID (for access control)
 
         Returns:
-            List of dicts with category, cluster_count, total_items
+            True if deleted, False if not found or not owned by user
         """
-        grouped = self.get_clusters_grouped_by_category(user_id)
+        cluster = await self.get_cluster_by_id(cluster_id, user_id)
+        if not cluster:
+            return False
 
-        summary = []
-        for category, clusters in grouped.items():
-            total_items = sum(c["item_count"] for c in clusters)
-            summary.append(
-                {"category": category, "cluster_count": len(clusters), "total_items": total_items}
-            )
+        await self.repo.delete(cluster_id)
+        return True
 
-        # Sort by total_items descending
-        summary.sort(key=lambda x: x["total_items"], reverse=True)
-        return summary
+    async def delete_user_clusters_by_category(
+        self,
+        user_id: UUID,
+        content_category: ContentCategory,
+    ) -> int:
+        """
+        Delete all clusters for a user in a specific category.
+
+        Used before re-clustering to remove old clusters.
+
+        Args:
+            user_id: User UUID
+            content_category: Category to delete clusters for
+
+        Returns:
+            Number of clusters deleted
+        """
+        return await self.repo.delete_user_clusters_by_category(user_id, content_category)

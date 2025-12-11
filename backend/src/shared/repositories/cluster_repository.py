@@ -14,9 +14,10 @@ Common Operations:
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import select, func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.sql.functions import count as sql_count
 
 from src.shared.repositories.base import BaseRepository
 from src.shared.models.cluster import Cluster
@@ -103,7 +104,7 @@ class ClusterRepository(BaseRepository[Cluster]):
         result = await self.session.execute(
             select(
                 Cluster,
-                func.count(ClusterMembership.user_save_id).label("item_count"),
+                sql_count(ClusterMembership.user_save_id).label("item_count"),
             )
             .outerjoin(ClusterMembership, Cluster.id == ClusterMembership.cluster_id)
             .where(Cluster.user_id == user_id)

@@ -29,10 +29,10 @@ Usage:
         # Can be soft-deleted with content.deleted_at = datetime.now()
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
-from sqlalchemy import DateTime, func
+from sqlalchemy import DateTime, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -92,7 +92,7 @@ class TimestampMixin:
     # Automatically set by the database on INSERT using server_default
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),  # Store with timezone info for global apps
-        server_default=func.now(),  # Database sets this on INSERT
+        server_default=text("CURRENT_TIMESTAMP"),  # Database sets this on INSERT
         nullable=False,
     )
 
@@ -100,8 +100,8 @@ class TimestampMixin:
     # Automatically updated by SQLAlchemy on UPDATE using onupdate
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),  # Store with timezone info
-        server_default=func.now(),  # Initial value on INSERT
-        onupdate=func.now(),  # SQLAlchemy updates this on UPDATE
+        server_default=text("CURRENT_TIMESTAMP"),  # Initial value on INSERT
+        onupdate=lambda: datetime.now(timezone.utc),  # SQLAlchemy updates this on UPDATE
         nullable=False,
     )
 

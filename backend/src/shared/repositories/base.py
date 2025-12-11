@@ -85,8 +85,9 @@ from datetime import datetime, timezone
 from typing import Any, Generic, Optional, Type, TypeVar
 from uuid import UUID
 
-from sqlalchemy import select, func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.functions import count as sql_count
 
 from src.shared.models.base import Base
 
@@ -137,7 +138,7 @@ class BaseRepository(Generic[ModelType]):
     # READ OPERATIONS
     # ═══════════════════════════════════════════════════════════════════════════
 
-    async def get(self, id: UUID) -> Optional[ModelType]:
+    async def get(self, record_id: UUID) -> Optional[ModelType]:
         """
         Get a single record by its UUID.
 
@@ -145,7 +146,7 @@ class BaseRepository(Generic[ModelType]):
         record or returns None if not found.
 
         Args:
-            id: The UUID of the record to fetch
+            record_id: The UUID of the record to fetch
 
         Returns:
             The model instance if found, None otherwise
@@ -158,7 +159,7 @@ class BaseRepository(Generic[ModelType]):
         SQL Generated:
             SELECT * FROM users WHERE id = '550e8400-...'
         """
-        result = await self.session.execute(select(self.model).where(self.model.id == id))
+        result = await self.session.execute(select(self.model).where(self.model.id == record_id))
         return result.scalar_one_or_none()
 
     async def get_by_ids(self, ids: list[UUID]) -> list[ModelType]:
@@ -267,7 +268,7 @@ class BaseRepository(Generic[ModelType]):
         SQL Generated:
             SELECT COUNT(*) FROM users
         """
-        query = select(func.count()).select_from(self.model)
+        query = select(sql_count()).select_from(self.model)
 
         if filters:
             for field, value in filters.items():
@@ -277,14 +278,14 @@ class BaseRepository(Generic[ModelType]):
         result = await self.session.execute(query)
         return result.scalar() or 0
 
-    async def exists(self, id: UUID) -> bool:
+    async def exists(self, record_id: UUID) -> bool:
         """
         Check if a record exists without loading it.
 
         More efficient than get() when you only need to know if it exists.
 
         Args:
-            id: The UUID to check
+            record_id: The UUID to check
 
         Returns:
             True if record exists, False otherwise
@@ -297,7 +298,7 @@ class BaseRepository(Generic[ModelType]):
             SELECT COUNT(*) FROM users WHERE id = '...'
         """
         result = await self.session.execute(
-            select(func.count()).select_from(self.model).where(self.model.id == id)
+            select(sql_count()).select_from(self.model).where(self.model.id == record_id)
         )
         return (result.scalar() or 0) > 0
 
@@ -353,7 +354,7 @@ class BaseRepository(Generic[ModelType]):
 
     async def update(
         self,
-        id: UUID,
+        record_id: UUID,
         **kwargs: Any,
     ) -> Optional[ModelType]:
         """
@@ -363,7 +364,7 @@ class BaseRepository(Generic[ModelType]):
         Only updates fields that are provided and not None.
 
         Args:
-            id: UUID of the record to update
+            record_id: UUID of the record to update
             **kwargs: Fields to update (None values are ignored)
 
         Returns:
@@ -383,7 +384,7 @@ class BaseRepository(Generic[ModelType]):
             WHERE id = '...'
         """
         # First, load the existing record
-        instance = await self.get(id)
+        instance = await self.get(record_id)
         if not instance:
             return None
 
@@ -404,7 +405,7 @@ class BaseRepository(Generic[ModelType]):
     # DELETE OPERATIONS
     # ═══════════════════════════════════════════════════════════════════════════
 
-    async def delete(self, id: UUID) -> bool:
+    async def delete(self, record_id: UUID) -> bool:
         """
         Hard delete a record by ID.
 
@@ -412,7 +413,7 @@ class BaseRepository(Generic[ModelType]):
         Use soft_delete() instead if you want to preserve data.
 
         Args:
-            id: UUID of the record to delete
+            record_id: UUID of the record to delete
 
         Returns:
             True if deleted, False if not found
@@ -427,7 +428,7 @@ class BaseRepository(Generic[ModelType]):
         Warning:
             This is irreversible! Consider using soft_delete() instead.
         """
-        instance = await self.get(id)
+        instance = await self.get(record_id)
         if not instance:
             return False
 
@@ -435,7 +436,7 @@ class BaseRepository(Generic[ModelType]):
         await self.session.flush()
         return True
 
-    async def soft_delete(self, id: UUID) -> Optional[ModelType]:
+    async def soft_delete(self, record_id: UUID) -> Optional[ModelType]:
         """
         Soft delete a record by setting deleted_at timestamp.
 
@@ -446,7 +447,7 @@ class BaseRepository(Generic[ModelType]):
         (i.e., models using SoftDeleteMixin).
 
         Args:
-            id: UUID of the record to soft delete
+            record_id: UUID of the record to soft delete
 
         Returns:
             Updated model instance, or None if not found or doesn't support soft delete
@@ -463,7 +464,7 @@ class BaseRepository(Generic[ModelType]):
             Most queries should filter: WHERE deleted_at IS NULL
             This is typically done in repository methods.
         """
-        instance = await self.get(id)
+        instance = await self.get(record_id)
 
         # Check if record exists and supports soft delete
         if not instance or not hasattr(instance, "deleted_at"):

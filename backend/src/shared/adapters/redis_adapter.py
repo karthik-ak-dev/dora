@@ -7,6 +7,7 @@ Provides:
 - Distributed locking
 """
 
+import functools
 import json
 import logging
 from typing import Optional, Any, Dict
@@ -308,13 +309,7 @@ class RedisAdapter:
             return False
 
 
-# Singleton instance
-_redis_adapter: Optional[RedisAdapter] = None
-
-
+@functools.lru_cache(maxsize=1)
 def get_redis_adapter() -> RedisAdapter:
     """Get or create Redis adapter singleton."""
-    global _redis_adapter
-    if _redis_adapter is None:
-        _redis_adapter = RedisAdapter()
-    return _redis_adapter
+    return RedisAdapter()

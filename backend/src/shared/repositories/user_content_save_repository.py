@@ -191,3 +191,40 @@ class UserContentSaveRepository(BaseRepository[UserContentSave]):
         if not include_archived:
             filters["is_archived"] = False
         return await self.count(filters=filters)
+
+    async def get_user_saves_for_clustering(
+        self,
+        user_id: UUID,
+        content_category: ContentCategory,
+    ) -> List[UserContentSave]:
+        """
+        Get user's saves ready for clustering.
+
+        Returns saves that:
+        - Have READY status
+        - Have an embedding_id (vectorized)
+        - Match the specified category
+        - Are not archived
+
+        Args:
+            user_id: User's UUID
+            content_category: Category to filter by
+
+        Returns:
+            List of UserContentSave ready for clustering
+        """
+        query = (
+            select(UserContentSave)
+            .join(SharedContent)
+            .options(selectinload(UserContentSave.shared_content))
+            .where(
+                UserContentSave.user_id == user_id,
+                UserContentSave.is_archived.is_(False),
+                SharedContent.content_category == content_category,
+                SharedContent.status == ItemStatus.READY,
+                SharedContent.embedding_id.isnot(None),
+            )
+        )
+
+        result = await self.session.execute(query)
+        return list(result.scalars().all())

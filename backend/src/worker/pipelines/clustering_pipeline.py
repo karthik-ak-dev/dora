@@ -24,9 +24,9 @@ Example:
 - Tech (1 item) → No clustering (below minimum threshold)
 """
 
-from typing import Dict, Optional
+from typing import Callable, Dict, Optional
 from dataclasses import dataclass
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...shared.models.enums import ContentCategory
 from ...shared.services.clustering_service import ClusteringService
@@ -56,12 +56,14 @@ class ClusteringPipeline:
     before being grouped into fine-grained clusters.
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
         self.clustering_service = ClusteringService(db)
         self.user_save_repo = UserContentSaveRepository(db)
 
-    def process_user(self, user_id: str, embeddings_fetcher: callable) -> ClusteringPipelineResult:
+    async def process_user(
+        self, user_id: str, embeddings_fetcher: Callable
+    ) -> ClusteringPipelineResult:
         """
         Run clustering for a user across all categories.
 
@@ -75,7 +77,7 @@ class ClusteringPipeline:
         """
         try:
             # 1. Get all user's ready saves
-            saves = self.user_save_repo.get_user_saves_with_content(user_id)
+            saves = await self.user_save_repo.get_user_saves_with_content(user_id)
 
             # Filter to only READY content with embeddings
             ready_saves = [
@@ -94,7 +96,7 @@ class ClusteringPipeline:
             embeddings_map = embeddings_fetcher(content_ids)
 
             # 3. Run clustering for all categories
-            results = self.clustering_service.cluster_all_user_categories(
+            results = await self.clustering_service.cluster_all_user_categories(
                 user_id=user_id, embeddings_map=embeddings_map
             )
 
@@ -110,8 +112,8 @@ class ClusteringPipeline:
                 success=False, user_id=user_id, clusters_created={}, error_message=str(e)
             )
 
-    def process_user_category(
-        self, user_id: str, content_category: ContentCategory, embeddings_fetcher: callable
+    async def process_user_category(
+        self, user_id: str, content_category: ContentCategory, embeddings_fetcher: Callable
     ) -> ClusteringPipelineResult:
         """
         Run clustering for a specific category only.
@@ -130,7 +132,7 @@ class ClusteringPipeline:
         """
         try:
             # Get saves for this category
-            saves = self.user_save_repo.get_user_saves_for_clustering(
+            saves = await self.user_save_repo.get_user_saves_for_clustering(
                 user_id=user_id, content_category=content_category
             )
 
@@ -142,7 +144,7 @@ class ClusteringPipeline:
             embeddings_map = embeddings_fetcher(content_ids)
 
             # Run clustering
-            clusters = self.clustering_service.cluster_user_category(
+            clusters = await self.clustering_service.cluster_user_category(
                 user_id=user_id, content_category=content_category, embeddings_map=embeddings_map
             )
 

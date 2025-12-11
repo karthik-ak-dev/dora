@@ -136,15 +136,17 @@ async def get_cluster(
                 "raw_share_text": item.raw_share_text,
                 "is_favorited": item.is_favorited,
                 "created_at": item.created_at,
-                "content": {
-                    "id": str(item.shared_content.id),
-                    "url": item.shared_content.url,
-                    "title": item.shared_content.title,
-                    "thumbnail_url": item.shared_content.thumbnail_url,
-                    "source_platform": item.shared_content.source_platform,
-                }
-                if item.shared_content
-                else None,
+                "content": (
+                    {
+                        "id": str(item.shared_content.id),
+                        "url": item.shared_content.url,
+                        "title": item.shared_content.title,
+                        "thumbnail_url": item.shared_content.thumbnail_url,
+                        "source_platform": item.shared_content.source_platform,
+                    }
+                    if item.shared_content
+                    else None
+                ),
             }
             for item in items
         ],

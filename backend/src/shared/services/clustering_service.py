@@ -24,7 +24,7 @@ from dataclasses import dataclass
 import logging
 
 import numpy as np
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.enums import ContentCategory
 from ..models.cluster import Cluster
@@ -71,12 +71,12 @@ class ClusteringService:
     # Minimum items needed before running clustering at all
     MIN_ITEMS_FOR_CLUSTERING = 3
 
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
         self.cluster_repo = ClusterRepository(db)
         self.user_save_repo = UserContentSaveRepository(db)
 
-    def cluster_user_category(
+    async def cluster_user_category(
         self,
         user_id: str,
         content_category: ContentCategory,
@@ -94,7 +94,7 @@ class ClusteringService:
             List of created/updated Cluster objects
         """
         # 1. Get user's saves for this category
-        saves = self.user_save_repo.get_user_saves_for_clustering(
+        saves = await self.user_save_repo.get_user_saves_for_clustering(
             user_id=user_id, content_category=content_category
         )
 
@@ -124,7 +124,7 @@ class ClusteringService:
             return []
 
         # 4. Delete existing clusters for this category (re-clustering)
-        self.cluster_repo.delete_user_clusters_by_category(user_id, content_category)
+        await self.cluster_repo.delete_user_clusters_by_category(user_id, content_category)
 
         # 5. Create new clusters
         created_clusters = []
@@ -140,7 +140,7 @@ class ClusteringService:
             )
 
             # Create cluster
-            cluster = self.cluster_repo.create_cluster(
+            cluster = await self.cluster_repo.create_cluster(
                 user_id=user_id,
                 content_category=content_category,
                 label=label_result.label,
@@ -152,12 +152,12 @@ class ClusteringService:
                 membership = ClusterMembership(cluster_id=cluster.id, user_save_id=save_id)
                 self.db.add(membership)
 
-            self.db.commit()
+            await self.db.commit()
             created_clusters.append(cluster)
 
         return created_clusters
 
-    def cluster_all_user_categories(
+    async def cluster_all_user_categories(
         self, user_id: str, embeddings_map: Dict[str, List[float]]
     ) -> Dict[ContentCategory, List[Cluster]]:
         """
@@ -173,7 +173,7 @@ class ClusteringService:
         results: Dict[ContentCategory, List[Cluster]] = {}
 
         # Get all saves grouped by category
-        saves = self.user_save_repo.get_user_saves_with_content(user_id)
+        saves = await self.user_save_repo.get_user_saves_with_content(user_id)
 
         # Group by category
         saves_by_category: Dict[ContentCategory, List[UserContentSave]] = {}
@@ -186,7 +186,7 @@ class ClusteringService:
 
         # Cluster each category
         for category in saves_by_category:
-            clusters = self.cluster_user_category(
+            clusters = await self.cluster_user_category(
                 user_id=user_id, content_category=category, embeddings_map=embeddings_map
             )
             if clusters:

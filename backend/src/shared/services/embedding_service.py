@@ -7,6 +7,7 @@ Provides:
 - Similarity search operations
 """
 
+import functools
 import logging
 from typing import List, Dict, Optional
 from dataclasses import dataclass
@@ -338,13 +339,7 @@ class EmbeddingService:
         logger.info("Deleted embedding for content %s", content_id)
 
 
-# Singleton instance
-_embedding_service: Optional[EmbeddingService] = None
-
-
+@functools.lru_cache(maxsize=1)
 def get_embedding_service() -> EmbeddingService:
     """Get or create EmbeddingService singleton."""
-    global _embedding_service
-    if _embedding_service is None:
-        _embedding_service = EmbeddingService()
-    return _embedding_service
+    return EmbeddingService()

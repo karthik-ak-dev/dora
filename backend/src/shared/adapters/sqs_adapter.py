@@ -7,6 +7,7 @@ Provides:
 - Job payload serialization
 """
 
+import functools
 import json
 import logging
 from typing import Optional, Dict, Any, List
@@ -275,13 +276,7 @@ class SQSAdapter:
             raise
 
 
-# Singleton instance
-_sqs_adapter: Optional[SQSAdapter] = None
-
-
+@functools.lru_cache(maxsize=1)
 def get_sqs_adapter() -> SQSAdapter:
     """Get or create SQS adapter singleton."""
-    global _sqs_adapter
-    if _sqs_adapter is None:
-        _sqs_adapter = SQSAdapter()
-    return _sqs_adapter
+    return SQSAdapter()

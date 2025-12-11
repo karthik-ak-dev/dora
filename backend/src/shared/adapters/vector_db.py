@@ -7,6 +7,7 @@ Provides:
 - Filtering by metadata (content_category, etc.)
 """
 
+import functools
 import logging
 from typing import List, Optional, Dict, Any
 from dataclasses import dataclass
@@ -183,9 +184,9 @@ class VectorDBAdapter:
             )
 
         try:
-            results = self.client.search(
+            results = self.client.query_points(
                 collection_name=self.COLLECTION_NAME,
-                query_vector=vector,
+                query=vector,
                 limit=limit,
                 score_threshold=score_threshold,
                 query_filter=query_filter,
@@ -197,7 +198,7 @@ class VectorDBAdapter:
                     score=r.score,
                     payload=r.payload or {},
                 )
-                for r in results
+                for r in results.points
             ]
 
         except UnexpectedResponse as e:
@@ -304,13 +305,7 @@ class VectorDBAdapter:
             raise
 
 
-# Singleton instance
-_vector_db_adapter: Optional[VectorDBAdapter] = None
-
-
+@functools.lru_cache(maxsize=1)
 def get_vector_db_adapter() -> VectorDBAdapter:
     """Get or create VectorDB adapter singleton."""
-    global _vector_db_adapter
-    if _vector_db_adapter is None:
-        _vector_db_adapter = VectorDBAdapter()
-    return _vector_db_adapter
+    return VectorDBAdapter()

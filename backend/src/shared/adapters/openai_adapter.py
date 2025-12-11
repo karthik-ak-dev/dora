@@ -6,6 +6,7 @@ Provides:
 - LLM completions for content analysis and cluster labeling
 """
 
+import functools
 import json
 import logging
 from typing import List, Optional, Dict, Any
@@ -233,13 +234,7 @@ class OpenAIAdapter:
             raise ValueError(f"Invalid JSON response from LLM: {e}") from e
 
 
-# Singleton instance for convenience
-_openai_adapter: Optional[OpenAIAdapter] = None
-
-
+@functools.lru_cache(maxsize=1)
 def get_openai_adapter() -> OpenAIAdapter:
     """Get or create OpenAI adapter singleton."""
-    global _openai_adapter
-    if _openai_adapter is None:
-        _openai_adapter = OpenAIAdapter()
-    return _openai_adapter
+    return OpenAIAdapter()

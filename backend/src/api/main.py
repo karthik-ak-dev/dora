@@ -124,7 +124,7 @@ def create_application() -> FastAPI:
     3. Sets up exception handlers
     4. Registers all routes
     """
-    app = FastAPI(
+    application = FastAPI(
         title=settings.APP_NAME,
         description="AI-Powered Second Brain for Content",
         version=settings.APP_VERSION,
@@ -140,7 +140,7 @@ def create_application() -> FastAPI:
     # ═══════════════════════════════════════════════════════════════════════════
 
     # CORS Middleware - Must be added first
-    app.add_middleware(
+    application.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
         allow_credentials=True,
@@ -152,19 +152,19 @@ def create_application() -> FastAPI:
     # EXCEPTION HANDLERS
     # ═══════════════════════════════════════════════════════════════════════════
 
-    setup_exception_handlers(app)
+    setup_exception_handlers(application)
 
     # ═══════════════════════════════════════════════════════════════════════════
     # ROUTES
     # ═══════════════════════════════════════════════════════════════════════════
 
-    register_routes(app)
+    register_routes(application)
 
     # ═══════════════════════════════════════════════════════════════════════════
     # HEALTH CHECK
     # ═══════════════════════════════════════════════════════════════════════════
 
-    @app.get("/health", tags=["Health"])
+    @application.get("/health", tags=["Health"])
     async def health_check() -> dict:
         """Health check endpoint."""
         return {
@@ -173,8 +173,8 @@ def create_application() -> FastAPI:
             "version": settings.APP_VERSION,
         }
 
-    return app
+    return application
 
 
-# Create the application instance
+# Create the application instance for uvicorn
 app = create_application()

@@ -37,6 +37,17 @@ from ..repositories.user_content_save_repository import UserContentSaveRepositor
 
 logger = logging.getLogger(__name__)
 
+# Optional sklearn imports - gracefully handle if not installed
+try:
+    from sklearn.cluster import AgglomerativeClustering
+    from sklearn.metrics.pairwise import cosine_distances
+
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    AgglomerativeClustering = None  # type: ignore[misc, assignment]
+    cosine_distances = None  # type: ignore[misc, assignment]
+    SKLEARN_AVAILABLE = False
+
 
 @dataclass
 class ClusteringResult:
@@ -211,11 +222,8 @@ class ClusteringService:
         Returns:
             List of ClusteringResult objects
         """
-        try:
-            from sklearn.cluster import AgglomerativeClustering
-            from sklearn.metrics.pairwise import cosine_distances
-        except ImportError:
-            # Fallback: treat all items as one cluster
+        if not SKLEARN_AVAILABLE:
+            # Fallback: treat all items as one cluster if sklearn not installed
             return [ClusteringResult(label_id=0, save_ids=save_ids, centroid_idx=0)]
 
         n_samples = len(save_ids)

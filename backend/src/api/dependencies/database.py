@@ -1,6 +1,7 @@
 """
 Database dependency for FastAPI.
 """
+
 from typing import Generator
 from sqlalchemy.orm import Session
 

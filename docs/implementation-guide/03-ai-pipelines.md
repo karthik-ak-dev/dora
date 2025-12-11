@@ -8,7 +8,33 @@ This document details the AI and data processing pipelines that power the Conten
 - **Asynchronous Processing**: All heavy lifting happens in background workers.
 - **Idempotency**: Pipelines can be retried safely without side effects.
 - **Cost Efficiency**: Expensive AI operations run only once per unique content (SharedContent).
-- **User Context**: Clustering and personalization happen at the user level.
+- **Strong Classification**: Content is classified into a `content_category` during processing (NOT user-dependent).
+- **Per-Category Clustering**: Clustering groups items WITHIN each content_category.
+
+## Classification vs Clustering Architecture
+
+**Important Distinction**:
+
+| Aspect | Classification | Clustering |
+|--------|---------------|------------|
+| **When** | During content processing | After classification, per-user |
+| **Scope** | Global (per SharedContent) | User-specific |
+| **Output** | `content_category` (e.g., Food, Travel) | Cluster label (e.g., "Cafe Hopping in Indiranagar") |
+| **Dependency** | None - pure content analysis | Requires `content_category` to be set |
+| **Immutability** | Immutable after READY status | Re-computed as user saves more |
+
+**Flow**:
+```
+1. User saves URL
+   ↓
+2. ContentPipeline processes SharedContent
+   ↓
+3. AI Analysis assigns content_category = "Food" (STRONG, TIGHT classification)
+   ↓
+4. Clustering job runs for user
+   ↓
+5. Groups user's Food saves into clusters like "Cafe Hopping in Indiranagar"
+```
 
 ---
 
@@ -92,37 +118,67 @@ Visual Context: {visual_description}
 
 ---
 
-## Stage 3: Semantic Analysis (The "Brain")
+## Stage 3: Semantic Analysis & Classification (The "Brain")
 
-**Goal**: Understand *what* the content is about using LLMs.
+**Goal**: Understand *what* the content is about and assign the **authoritative content_category**.
 
 **Model**: GPT-4o-mini (Cost-effective & fast) or Claude 3 Haiku.
 
-### 3.1 System Prompt
+### 3.1 Classification Architecture
+
+**CRITICAL**: This stage assigns `content_category` - the **authoritative, strong classification**.
+
+- **Strong**: Must be exactly ONE of the defined `ContentCategory` values
+- **Tight**: Classification is definitive, not probabilistic
+- **Immutable**: Once status=READY, content_category cannot change
+- **User-Independent**: Classification is based purely on content, not user context
+
+**ContentCategory Values**:
+- `Travel` - Places, destinations, trips
+- `Food` - Restaurants, recipes, cafes, cooking
+- `Learning` - Educational content, tutorials, courses
+- `Career` - Professional development, jobs, workplace
+- `Fitness` - Workouts, health, wellness
+- `Entertainment` - Movies, music, games, fun
+- `Shopping` - Products, reviews, deals
+- `Tech` - Technology, gadgets, software
+- `Lifestyle` - Fashion, home, relationships
+- `Misc` - Anything that doesn't fit above (use sparingly)
+
+### 3.2 System Prompt
 
 ```text
 You are an expert content analyst. Analyze the provided content metadata and extract structured insights.
 
+CRITICAL: You MUST classify the content into exactly ONE content_category.
+Choose the MOST appropriate category. Use "Misc" only if no other category fits.
+
 Output JSON with the following schema:
 {
+  "content_category": "REQUIRED - One of [Travel, Food, Learning, Career, Fitness, Entertainment, Shopping, Tech, Lifestyle, Misc]",
   "topic_main": "Short, specific topic (max 5 words)",
-  "category_high": "One of [Travel, Food & Drink, Learning, Fitness, Tech, ...]",
-  "subcategories": ["List", "of", "specific", "tags"],
+  "subcategories": ["List", "of", "specific", "tags within the category"],
   "locations": ["List", "of", "places", "mentioned"],
   "entities": ["List", "of", "people", "brands", "products"],
   "intent": "One of [learn, visit, buy, try, watch, misc]",
-  "sentiment": "positive/neutral/negative",
   "summary": "One sentence summary"
 }
+
+Examples:
+- Instagram reel about cafe → content_category: "Food"
+- YouTube video about Python → content_category: "Learning" (or "Tech" if about a tech product)
+- Travel vlog about Goa beaches → content_category: "Travel"
 ```
 
-### 3.2 Input
+### 3.3 Input
 The `content_text` block generated in Stage 2.
 
-### 3.3 Output Handling
+### 3.4 Output Handling
 - Parse JSON response.
-- Validate against Pydantic models.
-- Store in `shared_content` table.
+- **Validate content_category** is one of the allowed values.
+- If invalid, default to "Misc" but log a warning.
+- Store in `shared_content.content_category` (this is the authoritative classification).
+- Store other fields in SharedContent.
 
 ---
 
@@ -151,39 +207,107 @@ embedding_input = f"{topic_main}: {summary}. Category: {category_high}. Tags: {'
 
 ---
 
-## Stage 5: Clustering (User-Level)
+## Stage 5: Clustering (User-Level, Per-Category)
 
-**Goal**: Group a specific user's saved items into meaningful clusters.
+**Goal**: Group a specific user's saved items into meaningful clusters **within each content_category**.
+
+**CRITICAL**: Clustering happens WITHIN categories, not across them.
+
+**Prerequisites**:
+- Content must have `content_category` assigned (status=READY)
+- Content must have embedding generated
+- User must have enough items in a category (minimum 3)
 
 **Trigger**:
 - **Periodic**: Nightly job for all active users.
-- **Event-based**: After user saves N new items (e.g., every 5 items).
+- **Event-based**: After user saves N new items in a category (e.g., every 5 items).
 
-### 5.1 The Algorithm: HDBSCAN vs KMeans
-We use **Agglomerative Clustering** or **HDBSCAN** because we *don't know* how many clusters (k) a user has.
+### 5.1 Per-Category Clustering Architecture
+
+```
+User's Saves:
+├── Food (5 items)
+│   ├── Cluster: "Cafe Hopping in Indiranagar" (3 items)
+│   └── Cluster: "Recipe Ideas" (2 items)
+├── Travel (3 items)
+│   └── Cluster: "Goa Beach Vacation" (3 items)
+├── Tech (1 item)
+│   └── (No clustering - below minimum threshold)
+└── Learning (4 items)
+    └── Cluster: "Python Tutorials" (4 items)
+```
+
+**Why Per-Category?**
+- Ensures items are properly categorized BEFORE grouping
+- Prevents mixing unrelated content in clusters
+- Cleaner, more meaningful cluster labels
+- Better user experience (browse by category, then by cluster)
+
+### 5.2 The Algorithm
+We use **Agglomerative Clustering** because we *don't know* how many clusters exist within a category.
 
 **Configuration**:
 - **Metric**: Cosine Distance
-- **Threshold**: 0.2 - 0.3 (Determines how strict the grouping is)
-- **Min Cluster Size**: 3 items
+- **Linkage**: Average
+- **n_clusters**: Dynamic based on item count (sqrt(n), bounded)
+- **Min Cluster Size**: 2 items
 
-### 5.2 Workflow
-1. **Fetch Embeddings**: Get all embeddings for `user_id` from Vector DB (filter by `id` in `user_content_saves`).
-2. **Run Clustering**: Assign a `cluster_id` (0, 1, 2...) to each item. Items with `-1` are noise (unclustered).
-3. **Diffing**: Compare with existing clusters to avoid re-creating the same ones.
+### 5.3 Workflow
 
-### 5.3 Generative Labeling (Naming Clusters)
+```python
+def cluster_user(user_id):
+    # 1. Get user's ready saves grouped by category
+    saves_by_category = get_user_saves_grouped_by_category(user_id)
+    
+    # 2. For each category with enough items
+    for category, saves in saves_by_category.items():
+        if len(saves) < MIN_ITEMS_FOR_CLUSTERING:
+            continue
+        
+        # 3. Fetch embeddings
+        embeddings = fetch_embeddings([s.shared_content_id for s in saves])
+        
+        # 4. Run clustering
+        clustering_results = run_agglomerative_clustering(embeddings)
+        
+        # 5. Delete old clusters for this category
+        delete_user_clusters_by_category(user_id, category)
+        
+        # 6. Create new clusters with LLM-generated labels
+        for cluster_items in clustering_results:
+            label = generate_cluster_label(category, cluster_items)
+            create_cluster(
+                user_id=user_id,
+                content_category=category,  # All items share this category
+                label=label.label,
+                short_description=label.description
+            )
+            create_cluster_memberships(cluster_id, cluster_items)
+```
+
+### 5.4 Generative Labeling (Naming Clusters)
 For each new cluster found:
 1. **Sample Items**: Take top 5 items closest to the cluster centroid.
-2. **LLM Prompt**:
+2. **Context**: Include the `content_category` in the prompt for better labels.
+3. **LLM Prompt**:
    ```text
-   Here are 5 items from a user's saved collection:
-   [List of titles and topics]
+   You are naming a cluster of saved content.
    
-   Generate a short, catchy label for this group (e.g., "Weekend Baking", "Python Tips").
-   Also provide a 1-sentence description.
+   Category: {content_category}
+   Items in this cluster:
+   - {topic_main_1}: {title_1}
+   - {topic_main_2}: {title_2}
+   ...
+   
+   Generate:
+   1. A short, catchy label (3-5 words) specific to this grouping
+   2. A 1-sentence description
+   
+   Examples for Food category:
+   - "Cafe Hopping in Indiranagar" - Trendy cafes and brunch spots in Indiranagar, Bangalore.
+   - "Quick Weeknight Dinners" - Easy recipes that can be made in under 30 minutes.
    ```
-3. **Save**: Create `Cluster` record and `ClusterMembership` links.
+4. **Save**: Create `Cluster` record (with `content_category`) and `ClusterMembership` links.
 
 ---
 

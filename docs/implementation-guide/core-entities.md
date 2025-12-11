@@ -4,9 +4,21 @@
 
 This document defines the **core domain entities** for the Content Intelligence MVP with a **normalized architecture** that separates content-level data from user-level data.
 
-**Key Architectural Decision**: Instead of duplicating content processing for each user who saves the same URL, we split the data model into:
-1. **SharedContent** - Universal content metadata (processed once, shared across all users)
-2. **UserContentSave** - User's personal relationship to that content
+**Key Architectural Decisions**:
+
+1. **Content Deduplication**: Instead of duplicating content processing for each user who saves the same URL, we split the data model into:
+   - **SharedContent** - Universal content metadata (processed once, shared across all users)
+   - **UserContentSave** - User's personal relationship to that content
+
+2. **Strong Classification**: Content is classified into a `content_category` during AI processing:
+   - Classification is **strong and tight** (exactly one of the defined categories)
+   - Classification is **user-independent** (based purely on content)
+   - Classification is **immutable** after processing completes
+
+3. **Per-Category Clustering**: Clusters group items **within** a content_category:
+   - All items in a cluster share the same `content_category`
+   - Cluster labels are AI-generated for the specific grouping
+   - Example: Food items → "Cafe Hopping in Indiranagar" cluster
 
 **Technology**: Python 3.11+ with SQLAlchemy 2.0 and PostgreSQL 14+
 
@@ -17,11 +29,24 @@ This document defines the **core domain entities** for the Content Intelligence 
 | Entity | Level | Purpose |
 |--------|-------|---------|
 | `User` | User | Registered application user |
-| `SharedContent` | Content | Universal content metadata (title, AI analysis, embeddings) |
+| `SharedContent` | Content | Universal content metadata + **authoritative content_category** |
 | `UserContentSave` | User-Content | User's personal save of a SharedContent item |
-| `Cluster` | User | AI-generated group of similar items for a user |
+| `Cluster` | User-Category | AI-generated group of similar items **within a content_category** |
 | `ClusterMembership` | User-Content | Links UserContentSaves to Clusters |
 | `ProcessingJob` | Content | Background job tracking for SharedContent processing |
+
+---
+
+## Classification vs Clustering
+
+| Aspect | Classification (content_category) | Clustering (Cluster) |
+|--------|----------------------------------|---------------------|
+| **Stored In** | `SharedContent.content_category` | `Cluster` entity |
+| **When Set** | During AI processing | After classification, per-user |
+| **Scope** | Global (per content) | User-specific |
+| **Values** | Enum: Travel, Food, Learning, etc. | AI-generated labels |
+| **Mutability** | Immutable after READY | Re-computed on demand |
+| **Example** | "Food" | "Cafe Hopping in Indiranagar" |
 
 ---
 
@@ -190,16 +215,23 @@ class ItemStatus(str, Enum):
     READY = "READY"            # Successfully processed and enriched
     FAILED = "FAILED"          # Processing failed (can be retried)
 
-class CategoryHighLevel(str, Enum):
-    """High-level content categorization"""
+class ContentCategory(str, Enum):
+    """
+    AUTHORITATIVE content categorization.
+    
+    This is the single source of truth for content classification.
+    Assigned during AI processing, immutable after READY status.
+    Used by both SharedContent and Cluster entities.
+    """
     TRAVEL = "Travel"
-    FOOD_DRINK = "Food & Drink"
+    FOOD = "Food"
     LEARNING = "Learning"
     CAREER = "Career"
     FITNESS = "Fitness"
     ENTERTAINMENT = "Entertainment"
     SHOPPING = "Shopping"
     TECH = "Tech"
+    LIFESTYLE = "Lifestyle"
     MISC = "Misc"
 
 class IntentType(str, Enum):
@@ -219,6 +251,17 @@ from sqlalchemy import Column, String, Text, Integer, Enum as SQLEnum, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 class SharedContent(Base):
+    """
+    Universal content metadata (processed once, shared across users).
+    
+    CLASSIFICATION ARCHITECTURE:
+    - `content_category`: The AUTHORITATIVE classification assigned during AI processing.
+      This is a strong, tight classification into one of the defined categories.
+      NOT dependent on user context or clustering.
+    
+    - Content is classified ONCE during processing and this classification is immutable.
+    - Clusters are then created WITHIN each category for finer user-level groupings.
+    """
     __tablename__ = "shared_content"
     
     # === IDENTITY ===
@@ -252,6 +295,15 @@ class SharedContent(Base):
         index=True
     )
     
+    # === PRIMARY CLASSIFICATION ===
+    # This is the authoritative category - assigned during AI processing
+    content_category = Column(
+        SQLEnum(ContentCategory),
+        nullable=True,  # Null until processed
+        index=True,
+        comment="Primary content category. Assigned during AI processing. Immutable after READY status."
+    )
+    
     # === BASIC METADATA (from platform) ===
     title = Column(Text)
     caption = Column(Text)
@@ -262,8 +314,7 @@ class SharedContent(Base):
     # === AI UNDERSTANDING - TEXT ANALYSIS ===
     content_text = Column(Text)
     topic_main = Column(Text)
-    category_high = Column(SQLEnum(CategoryHighLevel))
-    subcategories = Column(JSONB)
+    subcategories = Column(JSONB, comment="Fine-grained tags within the content_category")
     locations = Column(JSONB)
     entities = Column(JSONB)
     intent = Column(SQLEnum(IntentType))
@@ -672,27 +723,30 @@ class UserContentSave(Base):
 ## 4. Cluster Entity
 
 ### Purpose
-Represents an AI-generated group of semantically similar content saves for a specific user. Clusters are automatically created by analyzing embeddings and finding natural groupings within a user's saved content.
+Represents an AI-generated group of semantically similar content saves for a specific user **within a specific content_category**. 
 
-### Supporting Enum
-
-```python
-class ClusterType(str, Enum):
-    """Cluster categorization"""
-    TRAVEL = "Travel"
-    FOOD = "Food"
-    LEARNING = "Learning"
-    FITNESS = "Fitness"
-    ENTERTAINMENT = "Entertainment"
-    SHOPPING = "Shopping"
-    TECH = "Tech"
-    MISC = "Misc"
-```
+**Key Architectural Point**: Clusters are created WITHIN a content_category, not across categories.
+- All items in a cluster MUST have the same `SharedContent.content_category`
+- The `content_category` field on Cluster matches the category of its items
 
 ### ORM Model
 
 ```python
 class Cluster(Base):
+    """
+    AI-generated cluster of semantically similar content saves.
+    
+    CLUSTERING ARCHITECTURE:
+    - Clusters are created WITHIN a content_category (e.g., all Food items grouped together).
+    - The `content_category` field indicates which category this cluster belongs to.
+    - All items in a cluster MUST have the same SharedContent.content_category.
+    
+    Example:
+    - User has 5 Food saves, 3 Travel saves
+    - Clustering groups the 5 Food items into "Cafe Hopping in Indiranagar" cluster
+    - Clustering groups the 3 Travel items into "Goa Beach Vacation" cluster
+    - Each cluster has a content_category matching its items (Food, Travel)
+    """
     __tablename__ = "clusters"
     
     # === IDENTITY ===
@@ -709,14 +763,21 @@ class Cluster(Base):
     )
     
     # === CLUSTER METADATA ===
+    content_category = Column(
+        SQLEnum(ContentCategory),
+        nullable=False,
+        index=True,
+        comment="The category this cluster belongs to. All items in cluster share this category."
+    )
     label = Column(
         Text, 
-        nullable=False
+        nullable=False,
+        comment="AI-generated human-readable cluster name (e.g., 'Cafe Hopping in Indiranagar')"
     )
-    cluster_type = Column(
-        SQLEnum(ClusterType)
+    short_description = Column(
+        Text,
+        comment="AI-generated one-sentence description of the cluster"
     )
-    short_description = Column(Text)
     
     # === AUDIT ===
     created_at = Column(
@@ -756,14 +817,17 @@ class Cluster(Base):
 
 #### Cluster Metadata Section
 
-##### `label` - Text
+##### `content_category` - Enum (Required)
+- **Purpose**: The category this cluster belongs to
+- **Values**: Travel, Food, Learning, Career, Fitness, Entertainment, Shopping, Tech, Lifestyle, Misc
+- **Constraint**: All items in the cluster MUST have this same content_category
+- **Example**: A "Cafe Hopping in Indiranagar" cluster has `content_category = Food`
+
+##### `label` - Text (Required)
 - **Purpose**: Human-readable name for the cluster
 - **Generated By**: LLM based on cluster contents
-- **Example**: "Indiranagar Cafe Hopping"
-
-##### `cluster_type` - Enum (Optional)
-- **Purpose**: Broad categorization
-- **Values**: Travel, Food, Learning, Fitness, Entertainment, Shopping, Tech, Misc
+- **Example**: "Cafe Hopping in Indiranagar", "Goa Beach Vacation", "Python Tutorials"
+- **Note**: This is the fine-grained grouping within a category
 
 ##### `short_description` - Text (Optional)
 - **Purpose**: One-sentence summary
@@ -777,6 +841,16 @@ class Cluster(Base):
 #### `cluster_memberships` → ClusterMembership (One-to-Many)
 - **Purpose**: Links cluster to its member saves
 - **Cascade**: `all, delete-orphan`
+
+### Classification vs Cluster Label
+
+| Aspect | content_category | label |
+|--------|-----------------|-------|
+| **Source** | From SharedContent | AI-generated for cluster |
+| **Scope** | Category-level | Cluster-specific |
+| **Values** | Fixed enum | Free-form text |
+| **Example** | "Food" | "Cafe Hopping in Indiranagar" |
+| **Granularity** | Broad | Fine-grained |
 
 ---
 

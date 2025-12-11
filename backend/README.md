@@ -10,6 +10,7 @@ backend/
 │   ├── shared/              # Shared components (API & Worker)
 │   │   ├── core/           # Logging, exceptions
 │   │   ├── db/             # Async database session management
+│   │   ├── migrations/     # Alembic database migrations
 │   │   ├── models/         # SQLAlchemy ORM models
 │   │   ├── repositories/   # Data access layer (async)
 │   │   ├── services/       # Business logic (async)
@@ -19,15 +20,14 @@ backend/
 │   ├── api/                # FastAPI application
 │   │   ├── handlers/       # Route handlers
 │   │   ├── middleware/     # Error handling middleware
-│   │   └── dependencies/   # FastAPI dependencies (DI)
+│   │   ├── dependencies/   # FastAPI dependencies (DI)
+│   │   └── postman/        # Postman API collection
 │   ├── worker/             # Background job processing
 │   │   ├── processors/     # Job processors
 │   │   ├── pipelines/      # Multi-stage pipelines
 │   │   └── scrapers/       # Platform-specific scrapers
 │   └── config/             # Configuration (settings)
 ├── tests/                  # Test suite
-├── scripts/                # Utility scripts
-├── alembic/                # Database migrations
 └── requirements/           # Dependency management
 ```
 
@@ -270,6 +270,35 @@ docker-compose logs -f api
 # Stop all
 docker-compose down
 ```
+
+## API Testing with Postman
+
+A complete Postman collection is provided in `src/api/postman/` folder:
+
+```bash
+src/api/postman/
+├── Dora_API.postman_collection.json      # All API endpoints
+└── Dora_Local.postman_environment.json   # Local dev environment
+```
+
+### Import to Postman
+
+1. Open Postman
+2. Click "Import" button
+3. Select both JSON files from `src/api/postman/` folder
+4. Select "Dora - Local Development" environment
+
+### Testing Flow
+
+1. **Start Services**: `docker-compose up -d` (or run locally)
+2. **Health Check**: Run "Health Check" to verify API is running
+3. **Register**: Create a new user (token auto-saved)
+4. **Save Content**: Save a URL (save ID auto-saved)
+5. **Test CRUD**: Use other endpoints to test functionality
+
+The collection automatically:
+- Saves JWT token after login/register
+- Stores created resource IDs for subsequent requests
 
 ## License
 

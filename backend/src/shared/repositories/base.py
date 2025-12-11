@@ -93,10 +93,10 @@ from src.shared.models.base import Base
 
 
 # TypeVar bound to Base ensures we only work with SQLAlchemy models
-ModelType = TypeVar("ModelType", bound=Base)
+ModelT = TypeVar("ModelT", bound=Base)
 
 
-class BaseRepository(Generic[ModelType]):
+class BaseRepository(Generic[ModelT]):
     """
     Generic base repository providing common CRUD operations.
 
@@ -104,7 +104,7 @@ class BaseRepository(Generic[ModelType]):
     their own specialized query methods.
 
     Type Parameter:
-        ModelType: The SQLAlchemy model class this repository manages
+        ModelT: The SQLAlchemy model class this repository manages
 
     Attributes:
         model: The SQLAlchemy model class
@@ -120,7 +120,7 @@ class BaseRepository(Generic[ModelType]):
                 ...
     """
 
-    def __init__(self, model: Type[ModelType], session: AsyncSession) -> None:
+    def __init__(self, model: Type[ModelT], session: AsyncSession) -> None:
         """
         Initialize the repository.
 
@@ -138,7 +138,7 @@ class BaseRepository(Generic[ModelType]):
     # READ OPERATIONS
     # ═══════════════════════════════════════════════════════════════════════════
 
-    async def get(self, record_id: UUID) -> Optional[ModelType]:
+    async def get(self, record_id: UUID) -> Optional[ModelT]:
         """
         Get a single record by its UUID.
 
@@ -162,7 +162,7 @@ class BaseRepository(Generic[ModelType]):
         result = await self.session.execute(select(self.model).where(self.model.id == record_id))
         return result.scalar_one_or_none()
 
-    async def get_by_ids(self, ids: list[UUID]) -> list[ModelType]:
+    async def get_by_ids(self, ids: list[UUID]) -> list[ModelT]:
         """
         Get multiple records by their UUIDs.
 
@@ -197,7 +197,7 @@ class BaseRepository(Generic[ModelType]):
         filters: Optional[dict[str, Any]] = None,
         order_by: Optional[str] = None,
         order_desc: bool = True,
-    ) -> list[ModelType]:
+    ) -> list[ModelT]:
         """
         List records with pagination and optional filtering.
 
@@ -306,7 +306,7 @@ class BaseRepository(Generic[ModelType]):
     # CREATE OPERATIONS
     # ═══════════════════════════════════════════════════════════════════════════
 
-    async def create(self, **kwargs: Any) -> ModelType:
+    async def create(self, **kwargs: Any) -> ModelT:
         """
         Create a new record.
 
@@ -356,7 +356,7 @@ class BaseRepository(Generic[ModelType]):
         self,
         record_id: UUID,
         **kwargs: Any,
-    ) -> Optional[ModelType]:
+    ) -> Optional[ModelT]:
         """
         Update a record by ID.
 
@@ -436,7 +436,7 @@ class BaseRepository(Generic[ModelType]):
         await self.session.flush()
         return True
 
-    async def soft_delete(self, record_id: UUID) -> Optional[ModelType]:
+    async def soft_delete(self, record_id: UUID) -> Optional[ModelT]:
         """
         Soft delete a record by setting deleted_at timestamp.
 

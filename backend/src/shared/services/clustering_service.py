@@ -19,13 +19,15 @@ Example:
 - Clustering for Food: Groups into "Cafe Hopping" (3 items) + "Recipe Ideas" (2 items)
 - Clustering for Travel: Groups into "Goa Beach Vacation" (3 items)."""
 
-from typing import List, Dict, Tuple
-from dataclasses import dataclass
+import json
 import logging
+from dataclasses import dataclass
+from typing import List, Dict, Tuple
 
 import numpy as np
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..adapters.openai_adapter import get_openai_adapter
 from ..models.enums import ContentCategory
 from ..models.cluster import Cluster
 from ..models.cluster_membership import ClusterMembership
@@ -328,9 +330,6 @@ class ClusteringService:
         Returns:
             ClusterLabelResult from LLM
         """
-        from ..adapters.openai_adapter import get_openai_adapter
-        import json
-
         openai = get_openai_adapter()
 
         system_prompt = """You are naming a cluster of saved content for a user.

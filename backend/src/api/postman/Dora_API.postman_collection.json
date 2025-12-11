@@ -1,0 +1,678 @@
+{
+	"info": {
+		"_postman_id": "dora-api-collection",
+		"name": "Dora API",
+		"description": "AI-Powered Second Brain for Content - Complete API Collection\n\nSetup:\n1. Import this collection into Postman\n2. Set the `base_url` variable (default: http://localhost:8000)\n3. Register a user using the Register endpoint\n4. The token will be automatically saved after login/register\n5. All authenticated endpoints will use the token automatically",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "test_save_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "test_cluster_id",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Health",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"health"
+							]
+						},
+						"description": "Basic health check endpoint. Returns service status, name, and version."
+					},
+					"response": []
+				},
+				{
+					"name": "Readiness Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/ready",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"ready"
+							]
+						},
+						"description": "Readiness probe for Kubernetes/load balancers."
+					},
+					"response": []
+				},
+				{
+					"name": "Liveness Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/live",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"live"
+							]
+						},
+						"description": "Liveness probe for Kubernetes."
+					},
+					"response": []
+				}
+			],
+			"description": "Health check endpoints for monitoring and orchestration."
+		},
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Register",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('access_token', jsonData.access_token);",
+									"    console.log('Token saved successfully');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"test@example.com\",\n    \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/register",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"register"
+							]
+						},
+						"description": "Register a new user account.\n\nReturns user data and JWT access token.\nThe token is automatically saved to collection variables."
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('access_token', jsonData.access_token);",
+									"    console.log('Token saved successfully');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"test@example.com\",\n    \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						},
+						"description": "Authenticate with email and password.\n\nReturns user data and JWT access token.\nThe token is automatically saved to collection variables."
+					},
+					"response": []
+				}
+			],
+			"description": "User authentication endpoints (register and login)."
+		},
+		{
+			"name": "Content (Items)",
+			"item": [
+				{
+					"name": "Save Content",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('test_save_id', jsonData.save.id);",
+									"    console.log('Save ID stored:', jsonData.save.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"url\": \"https://www.instagram.com/p/ABC123/\",\n    \"raw_share_text\": \"Check out this amazing content!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/items",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"items"
+							]
+						},
+						"description": "Save new content for the authenticated user.\n\nThe URL is normalized and deduplicated. If content already exists globally, it's reused.\n\nThe save ID is automatically stored for use in other requests."
+					},
+					"response": []
+				},
+				{
+					"name": "List Content",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/items?page=1&page_size=20",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"items"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number (default: 1)"
+								},
+								{
+									"key": "page_size",
+									"value": "20",
+									"description": "Items per page (1-100, default: 20)"
+								},
+								{
+									"key": "category",
+									"value": "Food",
+									"description": "Filter by category: Travel, Food, Learning, Career, Fitness, Entertainment, Shopping, Tech, Lifestyle, Misc",
+									"disabled": true
+								},
+								{
+									"key": "status",
+									"value": "READY",
+									"description": "Filter by status: PENDING, PROCESSING, READY, FAILED",
+									"disabled": true
+								},
+								{
+									"key": "include_archived",
+									"value": "false",
+									"description": "Include archived saves (default: false)",
+									"disabled": true
+								}
+							]
+						},
+						"description": "List user's saved content with pagination.\n\nSupports filtering by:\n- category: Content category (Travel, Food, Tech, etc.)\n- status: Processing status (PENDING, READY, FAILED)\n- include_archived: Whether to include archived saves"
+					},
+					"response": []
+				},
+				{
+					"name": "List Content (by Category)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/items?page=1&page_size=20&category=Food",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"items"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "page_size",
+									"value": "20"
+								},
+								{
+									"key": "category",
+									"value": "Food"
+								}
+							]
+						},
+						"description": "List content filtered by a specific category.\n\nAvailable categories:\n- Travel\n- Food\n- Learning\n- Career\n- Fitness\n- Entertainment\n- Shopping\n- Tech\n- Lifestyle\n- Misc"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Category Counts",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/items/categories",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"items",
+								"categories"
+							]
+						},
+						"description": "Get count of saves per category for the user.\n\nReturns a breakdown of how many saves exist in each content category."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Save by ID",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/items/{{test_save_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"items",
+								"{{test_save_id}}"
+							]
+						},
+						"description": "Get a specific save by ID.\n\nReturns the save details along with the associated content."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Save",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"raw_share_text\": \"Updated note about this content\",\n    \"is_favorited\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/items/{{test_save_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"items",
+								"{{test_save_id}}"
+							]
+						},
+						"description": "Update a save's user-specific fields.\n\nCan update:\n- raw_share_text: User's personal note\n- is_favorited: Favorite status\n- is_archived: Archived status"
+					},
+					"response": []
+				},
+				{
+					"name": "Toggle Favorite",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/items/{{test_save_id}}/favorite",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"items",
+								"{{test_save_id}}",
+								"favorite"
+							]
+						},
+						"description": "Toggle favorite status for a save.\n\nIf currently favorited, removes favorite.\nIf not favorited, adds to favorites."
+					},
+					"response": []
+				},
+				{
+					"name": "Toggle Archive",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/items/{{test_save_id}}/archive",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"items",
+								"{{test_save_id}}",
+								"archive"
+							]
+						},
+						"description": "Toggle archive status for a save.\n\nIf currently archived, unarchives.\nIf not archived, archives the save."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Save",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/items/{{test_save_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"items",
+								"{{test_save_id}}"
+							]
+						},
+						"description": "Delete a save.\n\nThis removes the user's save but keeps the SharedContent (other users may have saved it).\n\nReturns 204 No Content on success."
+					},
+					"response": []
+				}
+			],
+			"description": "Content management endpoints (CRUD operations for saved items)."
+		},
+		{
+			"name": "Clusters",
+			"item": [
+				{
+					"name": "List Clusters",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.clusters && jsonData.clusters.length > 0) {",
+									"        pm.collectionVariables.set('test_cluster_id', jsonData.clusters[0].id);",
+									"        console.log('Cluster ID stored:', jsonData.clusters[0].id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/clusters",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"clusters"
+							],
+							"query": [
+								{
+									"key": "category",
+									"value": "Food",
+									"description": "Filter by category: Travel, Food, Learning, etc.",
+									"disabled": true
+								}
+							]
+						},
+						"description": "List user's AI-generated content clusters.\n\nOptionally filter by content category.\n\nReturns clusters with item counts."
+					},
+					"response": []
+				},
+				{
+					"name": "List Clusters (by Category)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/clusters?category=Food",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"clusters"
+							],
+							"query": [
+								{
+									"key": "category",
+									"value": "Food"
+								}
+							]
+						},
+						"description": "List clusters filtered by a specific category.\n\nUseful for viewing all clusters within a category (e.g., all Food clusters)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Cluster with Items",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/clusters/{{test_cluster_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"clusters",
+								"{{test_cluster_id}}"
+							]
+						},
+						"description": "Get a specific cluster with all its items.\n\nReturns cluster details including label, description, and list of all items in the cluster."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Cluster",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/clusters/{{test_cluster_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"clusters",
+								"{{test_cluster_id}}"
+							]
+						},
+						"description": "Delete a cluster.\n\nNote: This only deletes the cluster, not the content saves within it. The saves remain and can be re-clustered.\n\nReturns 204 No Content on success."
+					},
+					"response": []
+				}
+			],
+			"description": "AI-generated content cluster endpoints."
+		}
+	]
+}

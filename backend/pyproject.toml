@@ -20,14 +20,14 @@ exclude = '''
     | buck-out
     | build
     | dist
-    | alembic
+    | migrations
 )/
 '''
 
 [tool.isort]
 profile = "black"
 line_length = 100
-skip = [".git", ".venv", "alembic"]
+skip = [".git", ".venv", "migrations"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -51,7 +51,19 @@ addopts = "-v --tb=short"
 line-length = 100
 select = ["E", "F", "W", "I", "N", "UP", "B", "C4"]
 ignore = ["E501"]
-exclude = [".git", ".venv", "alembic"]
+exclude = [".git", ".venv", "alembic", "migrations"]
+
+[tool.pylint.main]
+# Exclude migrations - Alembic uses runtime proxies and specific naming conventions
+# that conflict with pylint's static analysis
+ignore-paths = ["src/shared/migrations"]
+
+[tool.pylint."messages control"]
+# Disable checks that don't apply well to this codebase
+disable = [
+    "too-few-public-methods", # Pydantic/SQLAlchemy models often have few methods
+    "duplicate-code",         # Common patterns in repositories/schemas
+]
 
 [tool.coverage.run]
 source = ["src"]

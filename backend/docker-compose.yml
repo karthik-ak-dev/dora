@@ -11,6 +11,11 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U dora -d dora" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -31,13 +36,18 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://dora:dora@postgres:5432/dora
+      - DATABASE_URL=postgresql+asyncpg://dora:dora@postgres:5432/dora
       - REDIS_URL=redis://redis:6379
       - QDRANT_URL=http://qdrant:6333
+      - APP_ENV=development
+      - DEBUG=true
     depends_on:
-      - postgres
-      - redis
-      - qdrant
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
     volumes:
       - ./src:/app/src
     command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
@@ -47,13 +57,17 @@ services:
       context: .
       dockerfile: Dockerfile.worker
     environment:
-      - DATABASE_URL=postgresql://dora:dora@postgres:5432/dora
+      - DATABASE_URL=postgresql+asyncpg://dora:dora@postgres:5432/dora
       - REDIS_URL=redis://redis:6379
       - QDRANT_URL=http://qdrant:6333
+      - APP_ENV=development
     depends_on:
-      - postgres
-      - redis
-      - qdrant
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
     volumes:
       - ./src:/app/src
 

@@ -1,0 +1,42 @@
+[MAIN]
+# Ignore migrations folder - Alembic uses runtime proxy patterns
+# (alembic.op, alembic.context) that cannot be statically analyzed
+ignore-paths=^src/shared/migrations/.*$
+
+# Use multiple processes for faster linting
+jobs=0
+
+# Minimum Python version
+py-version=3.11
+
+[MESSAGES CONTROL]
+# Disable checks that don't apply well to this codebase
+disable=
+    too-few-public-methods,
+    duplicate-code,
+    too-many-arguments,
+    too-many-positional-arguments,
+    too-many-locals,
+    import-outside-toplevel,
+    broad-exception-caught,
+
+[FORMAT]
+# Maximum line length
+max-line-length=100
+
+[DESIGN]
+# Maximum number of arguments for functions
+max-args=8
+
+# Maximum number of local variables
+max-locals=20
+
+[BASIC]
+# Allow these naming patterns
+good-names=i,j,k,ex,_,id,db,e,f,n
+
+# Regex for valid module names (allow migration timestamps)
+module-rgx=[a-z_][a-z0-9_]*$|^\d{8}_\d{6}_\d{3}_[a-z_]+$
+
+# Allow factory pattern names like AsyncSessionLocal
+const-rgx=[A-Z_][A-Z0-9_]*$|[A-Z][a-zA-Z0-9]+$
